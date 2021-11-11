@@ -1,6 +1,6 @@
 # CSC311-Final-Project
 
-Fizzah: Currently working on Part A Q1 (kNN, all parts)
+Fizzah: Currently working on Part A Q2 (log likelihood)
 
 KNN Writeup:
   State the underlying assumption on itembased collaborative filtering: 
