@@ -38,7 +38,7 @@ def load_data(base_path="../data"):
 
 
 class AutoEncoder(nn.Module):
-    def __init__(self, num_question, k=100):
+    def __init__(self, num_question, k):
         """ Initialize a class AutoEncoder.
 
         :param num_question: int
@@ -70,7 +70,20 @@ class AutoEncoder(nn.Module):
         # Implement the function as described in the docstring.             #
         # Use sigmoid activations for f and g.                              #
         #####################################################################
-        out = inputs
+
+        encoder = nn.Sequential(
+            self.g,
+            nn.Sigmoid()
+
+        )
+        decoder = nn.Sequential(
+            self.h,
+            nn.Sigmoid()
+        )
+
+        encoded = encoder(inputs)
+        decoded = decoder(encoded)
+        out = decoded
         #####################################################################
         #                       END OF YOUR CODE                            #
         #####################################################################
@@ -155,6 +168,7 @@ def evaluate(model, train_data, valid_data):
 
 def main():
     zero_train_matrix, train_matrix, valid_data, test_data = load_data()
+    print(len(train_matrix[0]), torch.max(train_matrix))
 
     #####################################################################
     # TODO:                                                             #
@@ -162,13 +176,13 @@ def main():
     # validation set.                                                   #
     #####################################################################
     # Set model hyperparameters.
-    k = None
-    model = None
+    k_set = [10, 50, 100, 200, 500]
+    model = AutoEncoder(num_question=len(train_matrix[0]), k=k_set[2])
 
     # Set optimization hyperparameters.
-    lr = None
-    num_epoch = None
-    lamb = None
+    lr = 0.01  # learning rate
+    num_epoch = 10  # 1 = go through all train data for 1 time
+    lamb = None  # not used?
 
     train(model, lr, lamb, train_matrix, zero_train_matrix,
           valid_data, num_epoch)
