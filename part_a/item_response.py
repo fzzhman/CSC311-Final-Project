@@ -80,8 +80,8 @@ def irt(data, val_data, lr, iterations):
     :return: (theta, beta, val_acc_lst)
     """
     # TODO: Initialize theta and beta.
-    theta = None
-    beta = None
+    theta = 0.001  # None
+    beta = 0.001  # None
 
     val_acc_lst = []
 
