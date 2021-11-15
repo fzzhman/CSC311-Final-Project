@@ -132,6 +132,8 @@ def train(model, lr, lamb, train_data, zero_train_data, valid_data, num_epoch):
             train_loss += loss.item()
             optimizer.step()
 
+        train_loss += ((lamb*0.5)*model.get_weight_norm())
+
         valid_acc = evaluate(model, zero_train_data, valid_data)
         print("Epoch: {} \tTraining Cost: {:.6f}\t "
               "Valid Acc: {}".format(epoch, train_loss, valid_acc))
@@ -176,16 +178,22 @@ def main():
     # validation set.                                                   #
     #####################################################################
     # Set model hyperparameters.
-    k_set = [10, 50, 100, 200, 500]
-    model = AutoEncoder(num_question=len(train_matrix[0]), k=k_set[2])
+    k_set = [10, 50, 100, 200, 500]  # k=10 works best
+
 
     # Set optimization hyperparameters.
-    lr = 0.01  # learning rate
-    num_epoch = 10  # 1 = go through all train data for 1 time
-    lamb = None  # not used?
+    lr = 0.05  # learning rate
+    num_epoch = 30  # 1 = go through all train data for 1 time
+    lamb = 0.01  # lambda for L2 Regularization
 
-    train(model, lr, lamb, train_matrix, zero_train_matrix,
-          valid_data, num_epoch)
+    for i in range(0, 5):
+        model = AutoEncoder(num_question=len(train_matrix[0]), k=k_set[i])
+        print("CURRENT K = "+str(k_set[i]))
+        train(model, lr, lamb, train_matrix, zero_train_matrix,
+              valid_data, num_epoch)
+
+
+
     #####################################################################
     #                       END OF YOUR CODE                            #
     #####################################################################
