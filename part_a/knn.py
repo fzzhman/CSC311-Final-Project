@@ -37,7 +37,12 @@ def knn_impute_by_item(matrix, valid_data, k):
     # TODO:                                                             #
     # Implement the function as described in the docstring.             #
     #####################################################################
-    acc = None
+    matrix = matrix.T
+    nbrs = KNNImputer(n_neighbors=k)
+    mat = nbrs.fit_transform(matrix)
+    #####################################################################
+    acc = sparse_matrix_evaluate(valid_data, mat.T)
+    print("Validation Accuracy (question): {}".format(acc))
     #####################################################################
     #                       END OF YOUR CODE                            #
     #####################################################################
@@ -60,7 +65,39 @@ def main():
     # the best performance and report the test accuracy with the        #
     # chosen k*.                                                        #
     #####################################################################
-    pass
+    k_values = [1, 6, 11, 16, 21, 26]
+    accuracies_user = []
+    
+    for i in k_values:
+        accuracies_user.append(knn_impute_by_user(sparse_matrix, val_data, i))
+    k_user = accuracies_user.index(max(accuracies_user))
+    chosen_k = k_values[k_user]
+    test_acc = knn_impute_by_user(sparse_matrix, test_data, chosen_k)
+    print("Highest k value for knn_impute_by_user: ", chosen_k)
+    print("Test Accuracy for this value of k: ", test_acc)
+    fig1 = plt.figure()
+    ax = fig1.add_axes([0, 0, 1, 1])
+    ax.set_xlabel("k")
+    ax.set_ylabel("Accuracy")
+    plt.plot(k_values, accuracies_user, "-g", label="validation")
+    plt.legend(loc="upper right")
+    plt.show()
+    
+    accuracies_ques = []
+    for i in k_values:
+        accuracies_ques.append(knn_impute_by_item(sparse_matrix, val_data, i))
+    k_ques = accuracies_ques.index(max(accuracies_ques))
+    chosen_ques_k = k_values[k_ques]
+    test_acc_ques = knn_impute_by_item(sparse_matrix, test_data, chosen_ques_k)
+    print("Highest k value for knn_impute_by_item: ", chosen_ques_k)
+    print("Test Accuracy for this value of k: ", test_acc_ques)
+    fig1 = plt.figure()
+    ax = fig1.add_axes([0, 0, 1, 1])
+    ax.set_xlabel("k")
+    ax.set_ylabel("Accuracy")
+    plt.plot(k_values, accuracies_ques, "-g", label="validation")
+    plt.legend(loc="upper right")
+    plt.show()
     #####################################################################
     #                       END OF YOUR CODE                            #
     #####################################################################
