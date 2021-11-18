@@ -127,12 +127,13 @@ def train(model, lr, lamb, train_data, zero_train_data, valid_data, num_epoch):
             target[0][nan_mask] = output[0][nan_mask]
 
             loss = torch.sum((output - target) ** 2.)
+            loss += ((lamb * 0.5) * model.get_weight_norm())
             loss.backward()
 
             train_loss += loss.item()
             optimizer.step()
 
-        train_loss += ((lamb*0.5)*model.get_weight_norm())
+
 
         valid_acc = evaluate(model, zero_train_data, valid_data)
         print("Epoch: {} \tTraining Cost: {:.6f}\t "
