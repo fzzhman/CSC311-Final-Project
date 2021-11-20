@@ -185,13 +185,16 @@ def main():
     # Set optimization hyperparameters.
     lr = 0.05  # learning rate
     num_epoch = 30  # 1 = go through all train data for 1 time
-    lamb = 0.01  # lambda for L2 Regularization
+    lamb = [0.001, 0.01, 0.1, 1]  # lambda for L2 Regularization
 
-    for i in range(0, 5):
-        model = AutoEncoder(num_question=len(train_matrix[0]), k=k_set[i])
-        print("CURRENT K = "+str(k_set[i]))
-        train(model, lr, lamb, train_matrix, zero_train_matrix,
+    for i in range(0, 4):
+        model = AutoEncoder(num_question=len(train_matrix[0]), k=k_set[0])
+        print("k* = "+str(k_set[0])+"; learning rate = "+ str(lr)
+              + "; num_epoch = " + str(num_epoch)+"; lamb="+str(lamb[i]))
+        train(model, lr, lamb[i], train_matrix, zero_train_matrix,
               valid_data, num_epoch)
+        test_acc = evaluate(model, zero_train_matrix, test_data)
+        print("Test Acc: {}".format(test_acc))
 
 
 
