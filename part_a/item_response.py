@@ -60,7 +60,19 @@ def update_theta_beta(data, lr, theta, beta):
     # TODO:                                                             #
     # Implement the function as described in the docstring.             #
     #####################################################################
-    pass
+    user_i_arr = np.array(data["user_id"])
+    question_j_arr = np.array(data["question_id"])
+    correct_ij_arr = np.array(data["is_correct"])
+
+    theta_copy = theta.copy()
+    beta_copy = beta.copy()
+    for i in range(len(theta)):
+        theta[i] -= lr * (np.sum(sigmoid(theta_copy[i] - beta_copy)[question_j_arr[user_i_arr == i]])
+                          - np.sum(correct_ij_arr[user_i_arr == i]))
+
+    for j in range(len(beta)):
+        beta[j] -= lr * (np.sum(correct_ij_arr[question_j_arr == j]) -
+                         np.sum(sigmoid(theta_copy - beta_copy[j])[user_i_arr[question_j_arr == j]]))
     #####################################################################
     #                       END OF YOUR CODE                            #
     #####################################################################
@@ -81,20 +93,30 @@ def irt(data, val_data, lr, iterations):
     :return: (theta, beta, val_acc_lst)
     """
     # TODO: Initialize theta and beta.
-    theta = 0.001  # None
-    beta = 0.001  # None
+    theta = np.random.rand(542) * 0.1
+    beta = np.random.rand(1774) * 0.1
 
-    val_acc_lst = []
+    val_acc_lst, train_acc_lst = [], []
+    val_log_likelihood, train_log_likelihood = [], []
 
     for i in range(iterations):
-        neg_lld = neg_log_likelihood(data, theta=theta, beta=beta)
-        score = evaluate(data=val_data, theta=theta, beta=beta)
-        val_acc_lst.append(score)
-        print("NLLK: {} \t Score: {}".format(neg_lld, score))
+        # Log likelihood
+        train_neg_lld = neg_log_likelihood(data, theta=theta, beta=beta)
+        train_log_likelihood.append(train_neg_lld)
+        val_neg_lld = neg_log_likelihood(val_data, theta=theta, beta=beta)
+        val_log_likelihood.append(val_neg_lld)
+
+        train_score = evaluate(data=data, theta=theta, beta=beta)
+        train_acc_lst.append(train_score)
+        val_score = evaluate(data=val_data, theta=theta, beta=beta)
+        val_acc_lst.append(val_score)
+        #
+        print("NLLK: {} \t Train Score: {} \t Validation Score: {}"
+              .format(train_neg_lld, train_score, val_score))
         theta, beta = update_theta_beta(data, lr, theta, beta)
 
-    # TODO: You may change the return values to achieve what you want.
-    return theta, beta, val_acc_lst
+        #  TODO: You may change the return values to achieve what you want.
+    return theta, beta, val_log_likelihood, train_log_likelihood
 
 
 def evaluate(data, theta, beta):
@@ -128,7 +150,15 @@ def main():
     # Tune learning rate and number of iterations. With the implemented #
     # code, report the validation and test accuracy.                    #
     #####################################################################
-    pass
+    lr, iterations = 0.01, 20
+
+    theta, beta, val_log_likelihood, train_log_likelihood = \
+        irt(train_data, val_data, lr, iterations)
+    val_score = evaluate(data=val_data, theta=theta, beta=beta)
+    test_score = evaluate(data=test_data, theta=theta, beta=beta)
+
+    print("Validation Accuracy: ", val_score)
+    print("Test Accuracy: ", test_score)
     #####################################################################
     #                       END OF YOUR CODE                            #
     #####################################################################
