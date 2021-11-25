@@ -162,12 +162,29 @@ def main():
     #####################################################################
     #                       END OF YOUR CODE                            #
     #####################################################################
-
+    plt.plot(train_log_likelihood, label="train")
+    plt.plot(val_log_likelihood, label="valid")
+    plt.ylabel("Negative Log Likelihood")
+    plt.xlabel("Iteration")
+    plt.xticks(np.arange(0, iterations, 1))
+    plt.title("Neg Log Likelihood for Train and Validation Data")
+    plt.legend()
+    plt.show()
     #####################################################################
     # TODO:                                                             #
     # Implement part (d)                                                #
     #####################################################################
-    pass
+    questions = [100, 200, 300]
+    theta = theta.reshape(-1)
+    theta.sort()
+    for q in questions:
+        plt.plot(theta, sigmoid(theta - beta[q]),
+                 label=f"Question {q}")
+    plt.ylabel("Probability")
+    plt.xlabel("Theta")
+    plt.title("Selected Questions Probability as a function of Theta")
+    plt.legend()
+    plt.show()
     #####################################################################
     #                       END OF YOUR CODE                            #
     #####################################################################
