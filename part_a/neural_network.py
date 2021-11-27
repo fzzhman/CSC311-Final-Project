@@ -30,15 +30,16 @@ def load_data(base_path="../data"):
     zero_train_matrix = train_matrix.copy()
     # Fill in the missing entries to 0.
     zero_train_matrix[np.isnan(train_matrix)] = 0
+
     # Change to Float Tensor for PyTorch.
     zero_train_matrix = torch.FloatTensor(zero_train_matrix)
     train_matrix = torch.FloatTensor(train_matrix)
 
-    return zero_train_matrix, train_matrix, valid_data, test_data
+    return zero_train_matrix, train_matrix, valid_data, test_data,
 
 
 class AutoEncoder(nn.Module):
-    def __init__(self, num_question, k):
+    def __init__(self, num_question, k,p):
         """ Initialize a class AutoEncoder.
 
         :param num_question: int
@@ -49,6 +50,8 @@ class AutoEncoder(nn.Module):
         # Define linear functions.
         self.g = nn.Linear(num_question, k)
         self.h = nn.Linear(k, num_question)
+        self.k = nn.Dropout(p=0.2)
+        self.i = nn.Dropout(p=0.5)
 
     def get_weight_norm(self):
         """ Return ||W^1||^2 + ||W^2||^2.
@@ -57,6 +60,7 @@ class AutoEncoder(nn.Module):
         """
         g_w_norm = torch.norm(self.g.weight, 2) ** 2
         h_w_norm = torch.norm(self.h.weight, 2) ** 2
+
         return g_w_norm + h_w_norm
 
     def forward(self, inputs):
@@ -73,8 +77,7 @@ class AutoEncoder(nn.Module):
 
         encoder = nn.Sequential(
             self.g,
-            nn.Sigmoid()
-
+            nn.Sigmoid(),
         )
         decoder = nn.Sequential(
             self.h,
@@ -112,6 +115,7 @@ def train(model, lr, lamb, train_data, zero_train_data, valid_data, num_epoch):
     optimizer = optim.SGD(model.parameters(), lr=lr)
     num_student = train_data.shape[0]
 
+    prev_acc = 0
     for epoch in range(0, num_epoch):
         train_loss = 0.
 
@@ -127,7 +131,7 @@ def train(model, lr, lamb, train_data, zero_train_data, valid_data, num_epoch):
             target[0][nan_mask] = output[0][nan_mask]
 
             loss = torch.sum((output - target) ** 2.)
-            loss += ((lamb * 0.5) * model.get_weight_norm())
+            #loss += ((lamb/2) * model.get_weight_norm())
             loss.backward()
 
             train_loss += loss.item()
@@ -136,6 +140,10 @@ def train(model, lr, lamb, train_data, zero_train_data, valid_data, num_epoch):
 
 
         valid_acc = evaluate(model, zero_train_data, valid_data)
+        # if valid_acc > prev_acc:
+        #     prev_acc = valid_acc
+        # elif valid_acc <= prev_acc:
+
         print("Epoch: {} \tTraining Cost: {:.6f}\t "
               "Valid Acc: {}".format(epoch, train_loss, valid_acc))
     #####################################################################
@@ -170,6 +178,7 @@ def evaluate(model, train_data, valid_data):
 
 
 def main():
+    print(torch.cuda.is_available())
     zero_train_matrix, train_matrix, valid_data, test_data = load_data()
     print(len(train_matrix[0]), torch.max(train_matrix))
 
@@ -180,18 +189,21 @@ def main():
     #####################################################################
     # Set model hyperparameters.
     k_set = [10, 50, 100, 200, 500]  # k=10 works best
+    p_set = [0.2,0.5,0.72,0.725]
 
 
     # Set optimization hyperparameters.
     lr = 0.05  # learning rate
-    num_epoch = 30  # 1 = go through all train data for 1 time
-    lamb = [0.001, 0.01, 0.1, 1]  # lambda for L2 Regularization
+    num_epoch = 20  # 1 = go through all train data for 1 time
+    lamb = [0,0.00025, 0.0001,0.001, 0.01, 0.1, 1]  # lambda for L2 Regularization
+    b = 0.00025
+    lamb = [b*0.999,b*0.9999,b,b*1.0001,b*1.001]
 
-    for i in range(0, 4):
-        model = AutoEncoder(num_question=len(train_matrix[0]), k=k_set[0])
-        print("k* = "+str(k_set[0])+"; learning rate = "+ str(lr)
-              + "; num_epoch = " + str(num_epoch)+"; lamb="+str(lamb[i]))
-        train(model, lr, lamb[i], train_matrix, zero_train_matrix,
+    for i in range(len(k_set)):
+        model = AutoEncoder(num_question=len(train_matrix[0]), k=k_set[i], p=p_set[i])
+        print("k* = "+str(k_set[i])+"; learning rate = "+ str(lr)
+              + "; num_epoch = " + str(num_epoch)+"; lamb="+str(0)+"; p="+str(p_set[i]))
+        train(model, lr, lamb[0], train_matrix, zero_train_matrix,
               valid_data, num_epoch)
         test_acc = evaluate(model, zero_train_matrix, test_data)
         print("Test Acc: {}".format(test_acc))
