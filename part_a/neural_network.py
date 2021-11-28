@@ -203,8 +203,13 @@ def main():
         model = AutoEncoder(num_question=len(train_matrix[0]), k=k_set[i], p=p_set[i])
         print("k* = "+str(k_set[i])+"; learning rate = "+ str(lr)
               + "; num_epoch = " + str(num_epoch)+"; lamb="+str(0)+"; p="+str(p_set[i]))
-        train(model, lr, lamb[0], train_matrix, zero_train_matrix,
-              valid_data, num_epoch)
+        train(model,
+              lr,
+              lamb[0],
+              train_matrix,
+              zero_train_matrix,
+              valid_data,
+              num_epoch)
         test_acc = evaluate(model, zero_train_matrix, test_data)
         print("Test Acc: {}".format(test_acc))
 
