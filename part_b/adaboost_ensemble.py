@@ -39,6 +39,10 @@ def load_data(base_path="../data"):
 
     return zero_train_matrix, train_matrix, valid_data, test_data,
 
+def sigmoid(x):
+    """ Apply sigmoid function.
+    """
+    return np.exp(x) / (1 + np.exp(x))
 
 def weighted_bagging(train_matrix, weight_matrix, N):
     bagging_order = weight_matrix.copy()
@@ -68,7 +72,10 @@ def update_sample_weight(sample_weight_matrix,wrong_samples, model_weight):
     for item_index in range(len(wrong_samples)):
 
         if wrong_samples[item_index] > 0: # samples that got wrong need more focus, increase weight
-            sample_weight_matrix[item_index] = sample_weight_matrix[item_index] * (np.e ** model_weight)
+            u = wrong_samples[item_index]
+            k = np.sqrt(u.item(0))
+            for i in range(int(k)):
+                sample_weight_matrix[item_index] += sample_weight_matrix[item_index] * (np.e ** model_weight)
         elif wrong_samples[item_index] <= 0: #samples that got correct can predict easily, decrease weight
             sample_weight_matrix[item_index] = sample_weight_matrix[item_index] * (np.e ** -model_weight)
 
@@ -80,7 +87,7 @@ def update_sample_weight(sample_weight_matrix,wrong_samples, model_weight):
 
 def train_knn(current_training_set,valid_data,test_data):
     # train knn
-    k_values = [1, 6, 11, 16, 21, 26]
+    k_values = [26]
     accuracies_user = []
 
     for i in k_values:
@@ -91,21 +98,65 @@ def train_knn(current_training_set,valid_data,test_data):
     print("Highest k value for knn_impute_by_user: ", chosen_k)
     print("Test Accuracy for this value of k: ", test_acc)
 
-    valid_acc = knn.knn_impute_by_user(current_training_set, valid_data, chosen_k)
+    valid_acc = evaluate_knn_by_user(current_training_set, valid_data, chosen_k)
     return valid_acc
+
+def evaluate_knn_by_user(train_data, valid_data, k):
+    nbrs = KNNImputer(n_neighbors=k)
+    # We use NaN-Euclidean distance measure.
+    mat = nbrs.fit_transform(train_data)
+
+    total = 0
+    correct = 0
+    wrong = np.zeros((542, 1))
+    for i, q in enumerate(valid_data["question_id"]): # i=index q=q_id
+        u = valid_data["user_id"][i]
+        prediction = mat[u][q]
+        if prediction > 0.5:
+            prediction = 1
+        else:
+            prediction = 0
+
+        if valid_data["is_correct"][i] == prediction:
+            correct += 1
+        else:
+            wrong[u] += 1
+        total += 1
+
+    #acc = sparse_matrix_evaluate(valid_data, mat)
+
+    acc = correct/float(total)
+    print("Validation Accuracy: {}".format(acc))
+    return (acc, wrong)
 
 def train_irt(train_data, val_data, test_data):
     lr, iterations = 0.01, 20
 
     theta, beta, val_log_likelihood, train_log_likelihood = \
         ir.irt(train_data, val_data, lr, iterations)
-    val_score = ir.evaluate(data=val_data, theta=theta, beta=beta)
-    test_score = ir.evaluate(data=test_data, theta=theta, beta=beta)
+    val_score, wrong = evaluate_irt(data=val_data, theta=theta, beta=beta)
+    test_score, wrong = evaluate_irt(data=test_data, theta=theta, beta=beta)
 
     print("Validation Accuracy: ", val_score)
     print("Test Accuracy: ", test_score)
 
     return val_score
+
+def evaluate_irt(data, theta, beta):
+    total = 0
+    correct = 0
+    pred = []
+    wrong = np.zeros((542, 1))
+    for i, q in enumerate(data["question_id"]): # i=index q=q_id
+        u = data["user_id"][i]
+        x = (theta[u] - beta[q]).sum()
+        p_a = sigmoid(x)
+        pred.append(p_a >= 0.5)
+        if p_a < 0.5:
+            wrong[i] += 1
+    return np.sum((data["is_correct"] == np.array(pred))) \
+           / len(data["is_correct"]), wrong
+
 
 def train_neural_net(train_data, zero_train_data, valid_data, test_data):
 
@@ -123,23 +174,43 @@ def train_neural_net(train_data, zero_train_data, valid_data, test_data):
              zero_train_data=zero_train_data,
              valid_data=valid_data,
              num_epoch=3)
-    test_acc = nn.evaluate(model, zero_train_data, test_data)
+    test_acc, wrong = nn.evaluate(model, zero_train_data, test_data)
     print("Test Acc: {}".format(test_acc))
 
-    valid_acc = nn.evaluate(model,zero_train_data,valid_data)
+    valid_acc, wrong = nn.evaluate(model,zero_train_data,valid_data)
     return valid_acc
+
+def evluate_nn(model, train_data, valid_data):
+    model.eval()
+
+    total = 0
+    correct = 0
+    wrong = np.zeros((542,1))
+
+    for i, u in enumerate(valid_data["user_id"]): #get current index on valid data's user_id line
+        inputs = Variable(train_data[u]).unsqueeze(0) #get that user's train data
+        output = model(inputs) # generate that user's prediction
+
+        guess = output[0][valid_data["question_id"][i]].item() >= 0.5
+        if guess == valid_data["is_correct"][i]:
+            correct += 1
+        else:
+            wrong[u] += 1
+
+        total += 1
+    return correct / float(total), wrong
 
 def evaluate_adaboost_ensemble():
 
     # set initial parameters, load data
     zero_train_matrix, train_matrix, valid_data, test_data = load_data()
-
     N = len(zero_train_matrix)
     initial_weight = 1 / N
     sample_weight_matrix = np.full((N, 1), initial_weight)
 
-    model_weights = np.ones((3,1))
+    model_weight = [1, 1, 1]
     models = np.ones((3,1))
+    wrong = np.zeros((542,1))
 
     for model_index in range(3):
         # bootstrap
@@ -149,45 +220,22 @@ def evaluate_adaboost_ensemble():
         # current_training_set[0] = train_matrix[0]
         # current_zero_training_set[0] = zero_train_matrix[0]
 
-        model_weight = [0, 0, 0]
+
         valid_acc = 0
         # train
         if model_index == 0:
             valid_acc = train_knn(current_training_set,valid_data,test_data)
         elif model_index == 1:
             # train IRT
-            valid_acc = train_irt(current_training_set, valid_data, test_data)
+            valid_acc, wrong = train_irt(current_training_set, valid_data, test_data)
         elif model_index == 2:
             # train neural net
-            valid_acc = train_neural_net(current_training_set, current_zero_training_set, valid_data, test_data)
+            valid_acc, wrong = train_neural_net(current_training_set, current_zero_training_set, valid_data, test_data)
 
-        model_weight[model_index] = 0.5 * np.log(valid_acc / (1 - valid_acc))
+        model_weight[model_index] = 0.5 * np.log(valid_acc[0] / (1 - valid_acc[0]))
 
         # update sample weight
-        sample_weight_matrix = update_sample_weight(sample_weight_matrix,wrong_samples,model_weights[model_index])
-    print(model_weights)
-
-def prediction(model_weight, valid_data):
-
-    prediction = [0,0,0]
-    # predict knn
-    prediction[0] = models[0]
-    # predict IRT
-    prediction[1] = models[1]
-    # predict neural net
-    prediction[2] = models[2]
-
-    for i in prediction:
-        if i == 0:
-            i = -1
-
-    prediction *= model_weight
-
-    if sum(prediction) > 0.5:
-        return 1
-    else:
-        return 0
-
+        sample_weight_matrix = update_sample_weight(sample_weight_matrix, valid_acc[1], model_weight[model_index])
 
 
 def main():
