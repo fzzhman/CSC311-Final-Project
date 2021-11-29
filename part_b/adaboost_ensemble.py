@@ -38,9 +38,10 @@ def load_data(base_path="../data"):
 
     return zero_train_matrix, train_matrix, valid_data, test_data,
 
-def weighted_bagging(zero_train_matrix, weight_matrix, N):
 
-    current_training_set = zero_train_matrix.copy()
+def weighted_bagging(train_matrix, weight_matrix, N):
+    bagging_order = weight_matrix.copy()
+    current_training_set = train_matrix.copy()
     rng = np.random.default_rng()  # get a default random generator
 
     for i in range(N):
@@ -50,11 +51,14 @@ def weighted_bagging(zero_train_matrix, weight_matrix, N):
         for sample_index in range(len(weight_matrix)):
             current_top = current_bottom + weight_matrix[sample_index]
             if current_bottom <= n <= current_top:
-                current_training_set[i] = zero_train_matrix[sample_index]
+                current_training_set[i] = train_matrix[sample_index]
+                bagging_order[i] = sample_index
                 break
             current_bottom = current_top
 
-    return  current_training_set
+    current_zero_training_set = current_training_set.copy()
+    current_zero_training_set[np.isnan(train_matrix)] = 0
+    return current_training_set, current_zero_training_set, bagging_order
 
 
 def evaluate_model_weight(model, train_data, valid_data):
@@ -88,6 +92,7 @@ def evaluate_model_weight(model, train_data, valid_data):
 
     return model_weight,got_wrong
 
+
 def update_sample_weight(sample_weight_matrix,wrong_samples, model_weight):
     updated_weight_sum = 0
     for item_index in range(len(wrong_samples)):
@@ -99,6 +104,9 @@ def update_sample_weight(sample_weight_matrix,wrong_samples, model_weight):
 
         updated_weight_sum += sample_weight_matrix[item_index]
     sample_weight_matrix = sample_weight_matrix / updated_weight_sum
+    
+    return sample_weight_matrix
+
 
 def evaluate_adaboost_ensemble():
 
@@ -113,24 +121,27 @@ def evaluate_adaboost_ensemble():
 
     for model_index in range(3):
         # bootstrap
-        current_training_set = weighted_bagging(zero_train_matrix, sample_weight_matrix, N)
+        current_training_set,current_zero_training_set,bagging_order = \
+            weighted_bagging(train_matrix, sample_weight_matrix, N)
 
         current_training_set = torch.FloatTensor(current_training_set)
         train_matrix = torch.FloatTensor(train_matrix)
-        tensor_zero_train_matrix = torch.FloatTensor(zero_train_matrix)
+        current_zero_training_set = torch.FloatTensor(current_zero_training_set)
+        zero_train_matrix = torch.FloatTensor(zero_train_matrix)
+
         model = 0
         # train
         if model_index == 0:
         # train knn
             model = nn.AutoEncoder(num_question=len(train_matrix[0]), k=11, p=0)
             print("training neural net")
-            print("k* = " + str(10) + "; learning rate = " + str(0.05)
+            print("k* = " + str(11) + "; learning rate = " + str(0.01)
                   + "; num_epoch = " + str(20) + "; lamb=" + str(0.00025) + "; p=" + str(0))
             nn.train(model,
-                     lr=0.05,
+                     lr=0.01,
                      lamb=0.00025,
                      train_data=train_matrix,
-                     zero_train_data=current_training_set,
+                     zero_train_data=zero_train_matrix,
                      valid_data=valid_data,
                      num_epoch=20)
             test_acc = nn.evaluate(model, current_training_set, test_data)
