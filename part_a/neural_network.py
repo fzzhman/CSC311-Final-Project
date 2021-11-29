@@ -50,8 +50,6 @@ class AutoEncoder(nn.Module):
         # Define linear functions.
         self.g = nn.Linear(num_question, k)
         self.h = nn.Linear(k, num_question)
-        self.k = nn.Dropout(p=0.2)
-        self.i = nn.Dropout(p=0.5)
 
     def get_weight_norm(self):
         """ Return ||W^1||^2 + ||W^2||^2.
@@ -131,7 +129,7 @@ def train(model, lr, lamb, train_data, zero_train_data, valid_data, num_epoch):
             target[0][nan_mask] = output[0][nan_mask]
 
             loss = torch.sum((output - target) ** 2.)
-            #loss += ((lamb/2) * model.get_weight_norm())
+            loss += ((lamb/2) * model.get_weight_norm())
             loss.backward()
 
             train_loss += loss.item()

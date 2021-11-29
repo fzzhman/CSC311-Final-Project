@@ -10,14 +10,15 @@ from utils import *
 import numpy as np
 
 
-def train_neural_network(zero_train_matrix, train_matrix, lr=0.05, l2lambda=0.03, epochs=100, k=10):
+def train_neural_network(valid_data,zero_train_matrix, train_matrix, lr=0.05, l2lambda=0.03, epochs=10, k=10):
     print("Training NN with lr: {}, l2 lambda: {}, epoch: {}, k: {}".format(lr, l2lambda, epochs, k))
 
     U, Q = np.shape(zero_train_matrix)
-    model = nn.AutoEncoder(num_question=Q, k=k)
+    model = nn.AutoEncoder(num_question=Q, k=k, p=0)
     model.train()
     optimizer = optim.SGD(model.parameters(), lr)
     for iteration in range(epochs):
+        train_loss = 0
         for user_id in range(U):
             inputs = Variable(zero_train_matrix[user_id]).unsqueeze(0)
             target = inputs.clone()
@@ -33,7 +34,11 @@ def train_neural_network(zero_train_matrix, train_matrix, lr=0.05, l2lambda=0.03
             loss += ((l2lambda * 0.5) * model.get_weight_norm())
             loss.backward()
 
+            train_loss += loss.item()
             optimizer.step()
+        #valid_acc = evaluate(model, zero_train_matrix, valid_data)
+        print("Epoch: {} \tTraining Cost: {:.6f}\t "
+              "Valid Acc: {}".format(epochs, train_loss, 0))
     model.eval()
     return model
 
@@ -66,7 +71,7 @@ def evaluate_ensemble(n_samples=300):
     # TODO: Implement IRT
 
     # Train
-    nn_model = train_neural_network(zero_train_matrix[nn_base_dist], train_matrix)
+    nn_model = train_neural_network(valid_data,zero_train_matrix[nn_base_dist], train_matrix)
     # TODO: Implement IRT
 
     # Predict

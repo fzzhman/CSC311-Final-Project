@@ -118,71 +118,98 @@ def evaluate_adaboost_ensemble():
     sample_weight_matrix = np.full((N, 1), initial_weight)
 
     model_weights = np.ones((3,1))
+    models = np.ones((3,1))
 
     for model_index in range(3):
         # bootstrap
         current_training_set,current_zero_training_set,bagging_order = \
             weighted_bagging(train_matrix, sample_weight_matrix, N)
 
-        current_training_set = torch.FloatTensor(current_training_set)
-        train_matrix = torch.FloatTensor(train_matrix)
-        current_zero_training_set = torch.FloatTensor(current_zero_training_set)
-        zero_train_matrix = torch.FloatTensor(zero_train_matrix)
+        current_training_set[0] = train_matrix[0]
+        current_zero_training_set[0] = zero_train_matrix[0]
+
+        tensor_current_training_set = torch.FloatTensor(current_training_set)
+        tensor_train_matrix = torch.FloatTensor(train_matrix)
+        tensor_current_zero_training_set = torch.FloatTensor(current_zero_training_set)
+        tensor_zero_train_matrix = torch.FloatTensor(zero_train_matrix)
 
         model = 0
         # train
         if model_index == 0:
         # train knn
-            model = nn.AutoEncoder(num_question=len(train_matrix[0]), k=11, p=0)
+            model = nn.AutoEncoder(num_question=len(train_matrix[0]), k=13, p=0)
             print("training neural net")
-            print("k* = " + str(11) + "; learning rate = " + str(0.01)
-                  + "; num_epoch = " + str(20) + "; lamb=" + str(0.00025) + "; p=" + str(0))
+            print("k* = " + str(10) + "; learning rate = " + str(0.05)
+                  + "; num_epoch = " + str(3) + "; lamb=" + str(0.00025) + "; p=" + str(0))
             nn.train(model,
-                     lr=0.01,
+                     lr=0.05,
                      lamb=0.00025,
-                     train_data=train_matrix,
-                     zero_train_data=zero_train_matrix,
+                     train_data=tensor_current_training_set,
+                     zero_train_data=tensor_current_zero_training_set,
                      valid_data=valid_data,
-                     num_epoch=20)
-            test_acc = nn.evaluate(model, current_training_set, test_data)
+                     num_epoch=3)
+            test_acc = nn.evaluate(model, tensor_current_zero_training_set, test_data)
             print("Test Acc: {}".format(test_acc))
         elif model_index == 1:
         # train IRT
             model = nn.AutoEncoder(num_question=len(train_matrix[0]), k=12, p=0)
             print("training neural net")
             print("k* = " + str(10) + "; learning rate = " + str(0.05)
-                  + "; num_epoch = " + str(20) + "; lamb=" + str(0.00025) + "; p=" + str(0))
+                  + "; num_epoch = " + str(3) + "; lamb=" + str(0.00025) + "; p=" + str(0))
             nn.train(model,
                      lr=0.05,
                      lamb=0.00025,
-                     train_data=train_matrix,
-                     zero_train_data=current_training_set,
+                     train_data=tensor_current_training_set,
+                     zero_train_data=tensor_current_zero_training_set,
                      valid_data=valid_data,
-                     num_epoch=20)
-            test_acc = nn.evaluate(model, current_training_set, test_data)
+                     num_epoch=3)
+            test_acc = nn.evaluate(model, tensor_current_zero_training_set, test_data)
             print("Test Acc: {}".format(test_acc))
         elif model_index == 2:
         # train neural net
             model = nn.AutoEncoder(num_question=len(train_matrix[0]), k=10, p=0)
             print("training neural net")
             print("k* = " + str(10) + "; learning rate = " + str(0.05)
-                  + "; num_epoch = " + str(20) + "; lamb=" + str(0.00025) + "; p=" + str(0))
+                  + "; num_epoch = " + str(3) + "; lamb=" + str(0.00025) + "; p=" + str(0))
             nn.train(model,
                      lr=0.05,
                      lamb=0.00025,
-                     train_data=train_matrix,
-                     zero_train_data=current_training_set,
+                     train_data=tensor_current_training_set,
+                     zero_train_data=tensor_current_zero_training_set,
                      valid_data=valid_data,
-                     num_epoch=20)
-            test_acc = nn.evaluate(model, current_training_set, test_data)
+                     num_epoch=3)
+            test_acc = nn.evaluate(model, tensor_current_zero_training_set, test_data)
             print("Test Acc: {}".format(test_acc))
 
         # update model weight
         model_weights[model_index],wrong_samples = evaluate_model_weight(model,
-                                                                        current_training_set,
+                                                                        tensor_current_zero_training_set,
                                                                         valid_data=valid_data)
         # update sample weight
         sample_weight_matrix = update_sample_weight(sample_weight_matrix,wrong_samples,model_weights[model_index])
+    print(model_weights)
+
+def prediction(models,model_weight,training_data,valid_data):
+
+    prediction = [0,0,0]
+    # predict knn
+    prediction[0] = models[0]
+    # predict IRT
+    prediction[1] = models[1]
+    # predict neural net
+    prediction[2] = models[2]
+
+    for i in prediction:
+        if i == 0:
+            i = -1
+
+    prediction *= model_weight
+
+    if sum(prediction) > 0.5:
+        return 1
+    else:
+        return 0
+
 
 
 def main():
