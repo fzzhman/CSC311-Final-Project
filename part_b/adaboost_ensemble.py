@@ -7,6 +7,7 @@ from torch import optim
 from torch.autograd import Variable
 import part_a.neural_network as nn
 import part_a.item_response as ir
+
 import part_a.knn as knn
 from utils import *
 import numpy as np
@@ -61,37 +62,6 @@ def weighted_bagging(train_matrix, weight_matrix, N):
     return current_training_set, current_zero_training_set, bagging_order
 
 
-def evaluate_model_weight(model, train_data, valid_data):
-    """ Evaluate the valid_data on the current model.
-
-    :param model: Module
-    :param train_data: 2D FloatTensor
-    :param valid_data: A dictionary {user_id: list,
-    question_id: list, is_correct: list}
-    :return: float
-    """
-    # Tell PyTorch you are evaluating the model.
-    model.eval()
-
-    total = 0
-    correct = 0
-
-    got_wrong = np.zeros((len(train_data),1))
-    for i, u in enumerate(valid_data["user_id"]):
-        inputs = Variable(train_data[u]).unsqueeze(0)
-        output = model(inputs)
-
-        guess = output[0][valid_data["question_id"][i]].item() >= 0.5
-        if guess == valid_data["is_correct"][i]:
-            correct += 1
-        else:
-            got_wrong[u] += 1
-        total += 1
-    acc = correct / float(total)
-    model_weight = 0.5 * np.log(acc / (1 - acc))
-
-    return model_weight,got_wrong
-
 
 def update_sample_weight(sample_weight_matrix,wrong_samples, model_weight):
     updated_weight_sum = 0
@@ -107,6 +77,57 @@ def update_sample_weight(sample_weight_matrix,wrong_samples, model_weight):
     
     return sample_weight_matrix
 
+
+def train_knn(current_training_set,valid_data,test_data):
+    # train knn
+    k_values = [1, 6, 11, 16, 21, 26]
+    accuracies_user = []
+
+    for i in k_values:
+        accuracies_user.append(knn.knn_impute_by_user(current_training_set, valid_data, i))
+    k_user = accuracies_user.index(max(accuracies_user))
+    chosen_k = k_values[k_user]
+    test_acc = knn.knn_impute_by_user(current_training_set, test_data, chosen_k)
+    print("Highest k value for knn_impute_by_user: ", chosen_k)
+    print("Test Accuracy for this value of k: ", test_acc)
+
+    valid_acc = knn.knn_impute_by_user(current_training_set, valid_data, chosen_k)
+    return valid_acc
+
+def train_irt(train_data, val_data, test_data):
+    lr, iterations = 0.01, 20
+
+    theta, beta, val_log_likelihood, train_log_likelihood = \
+        ir.irt(train_data, val_data, lr, iterations)
+    val_score = ir.evaluate(data=val_data, theta=theta, beta=beta)
+    test_score = ir.evaluate(data=test_data, theta=theta, beta=beta)
+
+    print("Validation Accuracy: ", val_score)
+    print("Test Accuracy: ", test_score)
+
+    return val_score
+
+def train_neural_net(train_data, zero_train_data, valid_data, test_data):
+
+    train_data = torch.FloatTensor(train_data)
+    zero_train_data = torch.FloatTensor(zero_train_data)
+
+    model = nn.AutoEncoder(num_question=len(train_data[0]), k=10, p=0)
+    print("training neural net")
+    print("k* = " + str(10) + "; learning rate = " + str(0.05)
+          + "; num_epoch = " + str(3) + "; lamb=" + str(0.00025) + "; p=" + str(0))
+    nn.train(model,
+             lr=0.05,
+             lamb=0.00025,
+             train_data=train_data,
+             zero_train_data=zero_train_data,
+             valid_data=valid_data,
+             num_epoch=3)
+    test_acc = nn.evaluate(model, zero_train_data, test_data)
+    print("Test Acc: {}".format(test_acc))
+
+    valid_acc = nn.evaluate(model,zero_train_data,valid_data)
+    return valid_acc
 
 def evaluate_adaboost_ensemble():
 
@@ -125,71 +146,28 @@ def evaluate_adaboost_ensemble():
         current_training_set,current_zero_training_set,bagging_order = \
             weighted_bagging(train_matrix, sample_weight_matrix, N)
 
-        current_training_set[0] = train_matrix[0]
-        current_zero_training_set[0] = zero_train_matrix[0]
+        # current_training_set[0] = train_matrix[0]
+        # current_zero_training_set[0] = zero_train_matrix[0]
 
-        tensor_current_training_set = torch.FloatTensor(current_training_set)
-        tensor_train_matrix = torch.FloatTensor(train_matrix)
-        tensor_current_zero_training_set = torch.FloatTensor(current_zero_training_set)
-        tensor_zero_train_matrix = torch.FloatTensor(zero_train_matrix)
-
-        model = 0
+        model_weight = [0, 0, 0]
+        valid_acc = 0
         # train
         if model_index == 0:
-        # train knn
-            model = nn.AutoEncoder(num_question=len(train_matrix[0]), k=13, p=0)
-            print("training neural net")
-            print("k* = " + str(10) + "; learning rate = " + str(0.05)
-                  + "; num_epoch = " + str(3) + "; lamb=" + str(0.00025) + "; p=" + str(0))
-            nn.train(model,
-                     lr=0.05,
-                     lamb=0.00025,
-                     train_data=tensor_current_training_set,
-                     zero_train_data=tensor_current_zero_training_set,
-                     valid_data=valid_data,
-                     num_epoch=3)
-            test_acc = nn.evaluate(model, tensor_current_zero_training_set, test_data)
-            print("Test Acc: {}".format(test_acc))
+            valid_acc = train_knn(current_training_set,valid_data,test_data)
         elif model_index == 1:
-        # train IRT
-            model = nn.AutoEncoder(num_question=len(train_matrix[0]), k=12, p=0)
-            print("training neural net")
-            print("k* = " + str(10) + "; learning rate = " + str(0.05)
-                  + "; num_epoch = " + str(3) + "; lamb=" + str(0.00025) + "; p=" + str(0))
-            nn.train(model,
-                     lr=0.05,
-                     lamb=0.00025,
-                     train_data=tensor_current_training_set,
-                     zero_train_data=tensor_current_zero_training_set,
-                     valid_data=valid_data,
-                     num_epoch=3)
-            test_acc = nn.evaluate(model, tensor_current_zero_training_set, test_data)
-            print("Test Acc: {}".format(test_acc))
+            # train IRT
+            valid_acc = train_irt(current_training_set, valid_data, test_data)
         elif model_index == 2:
-        # train neural net
-            model = nn.AutoEncoder(num_question=len(train_matrix[0]), k=10, p=0)
-            print("training neural net")
-            print("k* = " + str(10) + "; learning rate = " + str(0.05)
-                  + "; num_epoch = " + str(3) + "; lamb=" + str(0.00025) + "; p=" + str(0))
-            nn.train(model,
-                     lr=0.05,
-                     lamb=0.00025,
-                     train_data=tensor_current_training_set,
-                     zero_train_data=tensor_current_zero_training_set,
-                     valid_data=valid_data,
-                     num_epoch=3)
-            test_acc = nn.evaluate(model, tensor_current_zero_training_set, test_data)
-            print("Test Acc: {}".format(test_acc))
+            # train neural net
+            valid_acc = train_neural_net(current_training_set, current_zero_training_set, valid_data, test_data)
 
-        # update model weight
-        model_weights[model_index],wrong_samples = evaluate_model_weight(model,
-                                                                        tensor_current_zero_training_set,
-                                                                        valid_data=valid_data)
+        model_weight[model_index] = 0.5 * np.log(valid_acc / (1 - valid_acc))
+
         # update sample weight
         sample_weight_matrix = update_sample_weight(sample_weight_matrix,wrong_samples,model_weights[model_index])
     print(model_weights)
 
-def prediction(models,model_weight,training_data,valid_data):
+def prediction(model_weight, valid_data):
 
     prediction = [0,0,0]
     # predict knn
