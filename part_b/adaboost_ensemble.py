@@ -274,32 +274,32 @@ def run_adaboost_ensemble():
         combined_zero_training_set = np.concatenate((zero_train_matrix,current_zero_training_set), axis=0)
 
         valid_acc = 0
-        current_train_data = train_data.copy()
-        current_train_data = sparse_martix_to_csv_data(current_zero_training_set, current_train_data)
+        combined_train_data = train_data.copy()
+        combined_train_data = sparse_martix_to_csv_data(combined_zero_training_set, combined_train_data)
 
         # train
         if model_index == 0:
-            knn_train_set = current_training_set.copy()
-            train_data_array.append(knn_train_set)
-            valid_acc, train_wrong, train_wpu = train_knn(current_training_set,current_train_data,valid_data,test_data)
+            knn_train_set = combined_training_set.copy()
+            train_data_array.append(combined_training_set)
+            valid_acc, train_wrong, train_wpu = train_knn(current_training_set,combined_train_data,valid_data,test_data)
             nbrs = KNNImputer(n_neighbors=26)
             # We use NaN-Euclidean distance measure.
             models.append(nbrs)
         elif model_index == 1:
             # train IRT
-            valid_acc, train_wrong, train_wpu, theta, beta = train_irt(current_train_data, valid_data, test_data)
+            valid_acc, train_wrong, train_wpu, theta, beta = train_irt(combined_train_data, valid_data, test_data)
             models.append((theta, beta))
-            train_data_array.append(current_train_data)
+            train_data_array.append(combined_train_data)
         elif model_index == 2:
             # train neural net
             print(np.shape(current_training_set))
             model,valid_acc, train_wrong, train_wpu = train_neural_net(combined_training_set,
                                                       combined_zero_training_set,
-                                                      current_train_data,
+                                                      combined_train_data,
                                                       valid_data,
                                                       test_data)
             models.append(model)
-            train_data_array.append(current_zero_training_set)
+            train_data_array.append(combined_zero_training_set)
 
 
         model_weight[model_index] = 0.5 * np.log(valid_acc / (1 - valid_acc))
