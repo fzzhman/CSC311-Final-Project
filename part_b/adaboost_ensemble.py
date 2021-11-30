@@ -64,7 +64,7 @@ def weighted_bagging(train_matrix, weight_matrix, N):
             current_bottom = current_top
 
     current_zero_training_set = current_training_set.copy()
-    current_zero_training_set[np.isnan(train_matrix)] = 0
+    current_zero_training_set[np.isnan(current_training_set)] = 0
     return current_training_set, current_zero_training_set, bagging_order
 
 
@@ -170,14 +170,14 @@ def train_neural_net(train_data, zero_train_data, valid_data, test_data):
     model = nn.AutoEncoder(num_question=len(train_data[0]), k=10, p=0)
     print("training neural net")
     print("k* = " + str(10) + "; learning rate = " + str(0.05)
-          + "; num_epoch = " + str(3) + "; lamb=" + str(0.00025) + "; p=" + str(0))
+          + "; num_epoch = " + str(5) + "; lamb=" + str(0.00025) + "; p=" + str(0))
     nn.train(model,
              lr=0.05,
              lamb=0.00025,
              train_data=train_data,
              zero_train_data=zero_train_data,
              valid_data=valid_data,
-             num_epoch=3)
+             num_epoch=5)
     test_acc, wrong = evaluate_nn(model, zero_train_data, test_data)
     print("Test Acc: {}".format(test_acc))
 
@@ -232,6 +232,7 @@ def evaluate_adaboost_ensemble():
     sample_weight_matrix = np.full((N, 1), initial_weight)
 
     model_weight = [1, 1, 1]
+    model_weight_per_user = np.ones((542, 3))
     models = np.ones((3,1))
     wrong = np.zeros((542,1))
 
@@ -240,28 +241,35 @@ def evaluate_adaboost_ensemble():
         current_training_set,current_zero_training_set,bagging_order = \
             weighted_bagging(train_matrix, sample_weight_matrix, N)
 
-        current_training_set[0] = train_matrix[0]
-        current_zero_training_set[0] = zero_train_matrix[0]
-
+        # current_training_set[0] = train_matrix[0]
+        # current_zero_training_set[0] = zero_train_matrix[0]
+        print(np.shape(current_training_set))
+        combined_training_set = np.concatenate((train_matrix, current_training_set), axis=0 )
+        combined_zero_training_set = np.concatenate((zero_train_matrix,current_zero_training_set), axis=0)
 
         valid_acc = 0
         # train
         if model_index == 1:
             valid_acc = train_knn(current_training_set,valid_data,test_data)
-        elif model_index == 2:
+        elif model_index == 0:
             # train IRT
             train_d = train_data.copy()
             train_d = sparse_martix_to_csv_data(current_zero_training_set,train_d)
-            valid_acc = train_irt(train_d, valid_data, test_data)
-        elif model_index == 0:
+            valid_acc = train_irt(train_d, train_data, train_data)
+        elif model_index == 2:
             # train neural net
-            valid_acc = train_neural_net(current_training_set, current_zero_training_set, valid_data, test_data)
+            print(np.shape(current_training_set))
+            valid_acc = train_neural_net(combined_training_set, combined_zero_training_set, valid_data, test_data)
 
         model_weight[model_index] = 0.5 * np.log(valid_acc[0] / (1 - valid_acc[0]))
 
         # update sample weight
         sample_weight_matrix = update_sample_weight(sample_weight_matrix, valid_acc[1], model_weight[model_index])
+        model_weight_per_user = update_model_weight_per_user(model_weight_per_user, valid_acc[1], model_index)
 
+def update_model_weight_per_user(model_weight_per_user, wrong, model_index):
+
+    return model_weight_per_user
 
 def main():
     print(evaluate_adaboost_ensemble())
