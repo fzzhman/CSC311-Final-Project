@@ -26,6 +26,7 @@ def load_data(base_path="../data"):
         user_id: list, is_correct: list}
     """
     train_matrix = load_train_sparse(base_path).toarray()
+    train_data = load_train_csv(base_path)
     valid_data = load_valid_csv(base_path)
     test_data = load_public_test_csv(base_path)
 
@@ -37,12 +38,13 @@ def load_data(base_path="../data"):
     # zero_train_matrix = torch.FloatTensor(zero_train_matrix)
     # train_matrix = torch.FloatTensor(train_matrix)
 
-    return zero_train_matrix, train_matrix, valid_data, test_data,
+    return zero_train_matrix, train_matrix, valid_data, test_data,train_data
 
 def sigmoid(x):
     """ Apply sigmoid function.
     """
     return np.exp(x) / (1 + np.exp(x))
+
 
 def weighted_bagging(train_matrix, weight_matrix, N):
     bagging_order = weight_matrix.copy()
@@ -64,7 +66,6 @@ def weighted_bagging(train_matrix, weight_matrix, N):
     current_zero_training_set = current_training_set.copy()
     current_zero_training_set[np.isnan(train_matrix)] = 0
     return current_training_set, current_zero_training_set, bagging_order
-
 
 
 def update_sample_weight(sample_weight_matrix,wrong_samples, model_weight):
@@ -101,6 +102,7 @@ def train_knn(current_training_set,valid_data,test_data):
     valid_acc = evaluate_knn_by_user(current_training_set, valid_data, chosen_k)
     return valid_acc
 
+
 def evaluate_knn_by_user(train_data, valid_data, k):
     nbrs = KNNImputer(n_neighbors=k)
     # We use NaN-Euclidean distance measure.
@@ -129,6 +131,7 @@ def evaluate_knn_by_user(train_data, valid_data, k):
     print("Validation Accuracy: {}".format(acc))
     return (acc, wrong)
 
+
 def train_irt(train_data, val_data, test_data):
     lr, iterations = 0.01, 20
 
@@ -142,6 +145,7 @@ def train_irt(train_data, val_data, test_data):
 
     return val_score
 
+
 def evaluate_irt(data, theta, beta):
     total = 0
     correct = 0
@@ -153,7 +157,7 @@ def evaluate_irt(data, theta, beta):
         p_a = sigmoid(x)
         pred.append(p_a >= 0.5)
         if p_a < 0.5:
-            wrong[i] += 1
+            wrong[u] += 1
     return np.sum((data["is_correct"] == np.array(pred))) \
            / len(data["is_correct"]), wrong
 
@@ -174,13 +178,14 @@ def train_neural_net(train_data, zero_train_data, valid_data, test_data):
              zero_train_data=zero_train_data,
              valid_data=valid_data,
              num_epoch=3)
-    test_acc, wrong = nn.evaluate(model, zero_train_data, test_data)
+    test_acc, wrong = evaluate_nn(model, zero_train_data, test_data)
     print("Test Acc: {}".format(test_acc))
 
-    valid_acc, wrong = nn.evaluate(model,zero_train_data,valid_data)
-    return valid_acc
+    valid_acc, wrong = evaluate_nn(model,zero_train_data,valid_data)
+    return (valid_acc, wrong)
 
-def evluate_nn(model, train_data, valid_data):
+
+def evaluate_nn(model, train_data, valid_data):
     model.eval()
 
     total = 0
@@ -200,10 +205,28 @@ def evluate_nn(model, train_data, valid_data):
         total += 1
     return correct / float(total), wrong
 
+def sparse_martix_to_csv_data(matrix, train_array):
+
+    index = 0
+    for u in range(len(matrix)):
+        for q in range(len(matrix[u])):
+            if not(np.isnan(matrix[u][q])):
+                train_array["user_id"][index] = u
+                train_array["question_id"][index] = q
+                train_array["is_correct"][index] = matrix[u][q]
+                index += 1
+            if index == len(train_array):
+                break
+        if index == len(train_array):
+            break
+    return train_array
+
+
+
 def evaluate_adaboost_ensemble():
 
     # set initial parameters, load data
-    zero_train_matrix, train_matrix, valid_data, test_data = load_data()
+    zero_train_matrix, train_matrix, valid_data, test_data, train_data = load_data()
     N = len(zero_train_matrix)
     initial_weight = 1 / N
     sample_weight_matrix = np.full((N, 1), initial_weight)
@@ -223,14 +246,16 @@ def evaluate_adaboost_ensemble():
 
         valid_acc = 0
         # train
-        if model_index == 0:
+        if model_index == 2:
             valid_acc = train_knn(current_training_set,valid_data,test_data)
-        elif model_index == 1:
+        elif model_index == 0:
             # train IRT
-            valid_acc, wrong = train_irt(current_training_set, valid_data, test_data)
-        elif model_index == 2:
+            train_d = train_data.copy()
+            train_d = sparse_martix_to_csv_data(current_zero_training_set,train_d)
+            valid_acc, wrong = train_irt(train_d, valid_data, test_data)
+        elif model_index == 1:
             # train neural net
-            valid_acc, wrong = train_neural_net(current_training_set, current_zero_training_set, valid_data, test_data)
+            valid_acc = train_neural_net(current_training_set, current_zero_training_set, valid_data, test_data)
 
         model_weight[model_index] = 0.5 * np.log(valid_acc[0] / (1 - valid_acc[0]))
 
