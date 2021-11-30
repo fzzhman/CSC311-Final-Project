@@ -1,5 +1,7 @@
 from utils import *
-
+import random
+import matplotlib.pyplot as plt
+from scipy.sparse import csr_matrix
 import numpy as np
 
 
@@ -11,9 +13,7 @@ def sigmoid(x):
 
 def neg_log_likelihood(data, theta, beta):
     """ Compute the negative log-likelihood.
-
     You may optionally replace the function arguments to receive a matrix.
-
     :param data: A dictionary {user_id: list, question_id: list,
     is_correct: list}
     :param theta: Vector
@@ -24,7 +24,8 @@ def neg_log_likelihood(data, theta, beta):
     # TODO:                                                             #
     # Implement the function as described in the docstring.             #
     #####################################################################
-    log_lklihood = 0.
+    log_likelihood = 0.
+
     for i in range(len(data["user_id"])):
         user = data["user_id"][i]
         question = data["question_id"][i]
@@ -32,23 +33,20 @@ def neg_log_likelihood(data, theta, beta):
 
         x = theta[user] - beta[question]
 
-        log_lklihood += correct*(np.log(sigmoid(x)))
+        log_likelihood += correct*(np.log(sigmoid(x)))
     #####################################################################
     #                       END OF YOUR CODE                            #
     #####################################################################
-    return -log_lklihood
+    return -log_likelihood
 
 
 def update_theta_beta(data, lr, theta, beta):
     """ Update theta and beta using gradient descent.
-
     You are using alternating gradient descent. Your update should look:
     for i in iterations ...
         theta <- new_theta
         beta <- new_beta
-
     You may optionally replace the function arguments to receive a matrix.
-
     :param data: A dictionary {user_id: list, question_id: list,
     is_correct: list}
     :param lr: float
@@ -81,9 +79,7 @@ def update_theta_beta(data, lr, theta, beta):
 
 def irt(data, val_data, lr, iterations):
     """ Train IRT model.
-
     You may optionally replace the function arguments to receive a matrix.
-
     :param data: A dictionary {user_id: list, question_id: list,
     is_correct: list}
     :param val_data: A dictionary {user_id: list, question_id: list,
@@ -93,10 +89,10 @@ def irt(data, val_data, lr, iterations):
     :return: (theta, beta, val_acc_lst)
     """
     # TODO: Initialize theta and beta.
-    theta = np.random.rand(542) * 0.1
-    beta = np.random.rand(1774) * 0.1
+    np.random.seed(1)
+    theta = np.random.rand(542)  # init theta randomly
+    beta = np.random.rand(1774)  # init beta randomly
 
-    val_acc_lst, train_acc_lst = [], []
     val_log_likelihood, train_log_likelihood = [], []
 
     for i in range(iterations):
@@ -107,9 +103,7 @@ def irt(data, val_data, lr, iterations):
         val_log_likelihood.append(val_neg_lld)
 
         train_score = evaluate(data=data, theta=theta, beta=beta)
-        train_acc_lst.append(train_score)
         val_score = evaluate(data=val_data, theta=theta, beta=beta)
-        val_acc_lst.append(val_score)
         #
         print("NLLK: {} \t Train Score: {} \t Validation Score: {}"
               .format(train_neg_lld, train_score, val_score))
@@ -123,18 +117,17 @@ def evaluate(data, theta, beta):
     """ Evaluate the model given data and return the accuracy.
     :param data: A dictionary {user_id: list, question_id: list,
     is_correct: list}
-
     :param theta: Vector
     :param beta: Vector
     :return: float
     """
-    pred = []
-    for i, q in enumerate(data["question_id"]):
-        u = data["user_id"][i]
-        x = (theta[u] - beta[q]).sum()
-        p_a = sigmoid(x)
-        pred.append(p_a >= 0.5)
-    return np.sum((data["is_correct"] == np.array(pred))) \
+    predictions = []
+    for i, j in enumerate(data["question_id"]):
+        users = data["user_id"][i]
+        x = (theta[users] - beta[j]).sum()
+        prediction_a = sigmoid(x)
+        predictions.append(prediction_a >= 0.5)
+    return np.sum((data["is_correct"] == np.array(predictions))) \
            / len(data["is_correct"])
 
 
@@ -150,18 +143,19 @@ def main():
     # Tune learning rate and number of iterations. With the implemented #
     # code, report the validation and test accuracy.                    #
     #####################################################################
-    lr, iterations = 0.01, 20
-
-    theta, beta, val_log_likelihood, train_log_likelihood = \
+    lr, iterations = 0.009, 20
+    theta, beta, val_log_likelihood, train_log_likelihood= \
         irt(train_data, val_data, lr, iterations)
     val_score = evaluate(data=val_data, theta=theta, beta=beta)
     test_score = evaluate(data=test_data, theta=theta, beta=beta)
+    print("Chosen lr parameter: ", lr)
+    print("Chosen number of iterations: ", iterations)
 
     print("Validation Accuracy: ", val_score)
     print("Test Accuracy: ", test_score)
+
     #####################################################################
-    #                       END OF YOUR CODE                            #
-    #####################################################################
+    # Part (b) Plots
     plt.plot(train_log_likelihood, label="train")
     plt.plot(val_log_likelihood, label="valid")
     plt.ylabel("Negative Log Likelihood")
@@ -170,11 +164,16 @@ def main():
     plt.title("Neg Log Likelihood for Train and Validation Data")
     plt.legend()
     plt.show()
+    #########################################################
+    #                       END OF YOUR CODE                            #
+    #####################################################################
+
     #####################################################################
     # TODO:                                                             #
-    # Implement part (d)                                                #
-    #####################################################################
-    questions = [100, 200, 300]
+    # Implement part (d)
+    np.random.seed(212)
+    questions = random.sample(val_data["question_id"], 3)
+    # randomly chose 3 questions from validation data
     theta = theta.reshape(-1)
     theta.sort()
     for q in questions:
@@ -186,9 +185,11 @@ def main():
     plt.legend()
     plt.show()
     #####################################################################
+    #####################################################################
     #                       END OF YOUR CODE                            #
     #####################################################################
 
 
 if __name__ == "__main__":
     main()
+
