@@ -134,7 +134,6 @@ def evaluate(data, theta, beta):
         x = (theta[u] - beta[q]).sum()
         p_a = sigmoid(x)
         pred.append(p_a >= 0.5)
-        print("str"+str(np.sum((data["is_correct"] == np.array(pred)))))
     return np.sum((data["is_correct"] == np.array(pred))) \
            / len(data["is_correct"])
 

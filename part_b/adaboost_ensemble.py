@@ -156,23 +156,29 @@ def evaluate_irt(data, theta, beta):
     total = 0
     correct = 0
     pred = []
-    wrong = np.zeros((542, 1))
-    correct = np.zeros((542, 1))
-    total = np.zeros((542, 1))
+    prediction = 0
+    wrong_a = np.zeros((542, 1))
+    correct_a = np.zeros((542, 1))
+    total_a = np.zeros((542, 1))
     for i, q in enumerate(data["question_id"]): # i=index q=q_id
         u = data["user_id"][i]
         x = (theta[u] - beta[q]).sum()
         p_a = sigmoid(x)
         if p_a < 0.5:
-            wrong[u] += 1
+            prediction = 0
         elif p_a >= 0.5:
-            pred.append(p_a)
-            correct[u] += 1
-        total[u] += 1
-    weight_per_user = correct/total
-    print("is_coorect ==" + str(np.sum((data["is_correct"] == np.array(pred)))) )
-    return np.sum((data["is_correct"] == np.array(pred))) \
-           / len(data["is_correct"]), wrong, weight_per_user
+            prediction = 1
+        if prediction == data["is_correct"][i]:
+            correct += 1
+            correct_a[u] += 1
+        else:
+            wrong_a[u] += 1
+
+        total_a[u] += 1
+        total += 1
+    weight_per_user = correct_a/total_a
+
+    return correct/float(total), wrong_a, weight_per_user
 
 
 def train_neural_net(train_data, zero_train_data,current_train_data, valid_data, test_data):
@@ -183,7 +189,7 @@ def train_neural_net(train_data, zero_train_data,current_train_data, valid_data,
     model = nn.AutoEncoder(num_question=len(train_data[0]), k=10, p=0)
     print("training neural net")
     print("k* = " + str(10) + "; learning rate = " + str(0.05)
-          + "; num_epoch = " + str(5) + "; lamb=" + str(0.00025) + "; p=" + str(0))
+          + "; num_epoch = " + str(20) + "; lamb=" + str(0.00025) + "; p=" + str(0))
     nn.train(model,
              lr=0.05,
              lamb=0.00025,
@@ -255,7 +261,7 @@ def run_adaboost_ensemble():
     models = []
     train_wrong = np.zeros((542,1))
     train_wpu = np.zeros((542,1))
-
+    train_data_array = []
     for model_index in range(3):
         # bootstrap
         current_training_set,current_zero_training_set,bagging_order = \
@@ -270,8 +276,11 @@ def run_adaboost_ensemble():
         valid_acc = 0
         current_train_data = train_data.copy()
         current_train_data = sparse_martix_to_csv_data(current_zero_training_set, current_train_data)
+
         # train
         if model_index == 0:
+            knn_train_set = current_training_set.copy()
+            train_data_array.append(knn_train_set)
             valid_acc, train_wrong, train_wpu = train_knn(current_training_set,current_train_data,valid_data,test_data)
             nbrs = KNNImputer(n_neighbors=26)
             # We use NaN-Euclidean distance measure.
@@ -280,6 +289,7 @@ def run_adaboost_ensemble():
             # train IRT
             valid_acc, train_wrong, train_wpu, theta, beta = train_irt(current_train_data, valid_data, test_data)
             models.append((theta, beta))
+            train_data_array.append(current_train_data)
         elif model_index == 2:
             # train neural net
             print(np.shape(current_training_set))
@@ -289,25 +299,28 @@ def run_adaboost_ensemble():
                                                       valid_data,
                                                       test_data)
             models.append(model)
+            train_data_array.append(current_zero_training_set)
 
 
         model_weight[model_index] = 0.5 * np.log(valid_acc / (1 - valid_acc))
 
         # update sample weight
-        sample_weight_matrix = update_sample_weight(sample_weight_matrix, train_wrong, model_weight[model_index])
+        if model_index != 2:
+            sample_weight_matrix = update_sample_weight(sample_weight_matrix, train_wrong, model_weight[model_index])
         train_wpu = train_wpu.transpose()
         np.copyto(model_weight_per_user[model_index],train_wpu)
         if model_index == 2:
             print("chec")
             model_weight_per_user = model_weight_per_user.transpose()
-    test_acc = evaluate_adaboost_ensemble(models, model_weight_per_user, train_data, test_data)
+    test_acc = evaluate_adaboost_ensemble(models, model_weight_per_user, train_data_array, test_data)
+    return str(test_acc)
 
 
 def pick_suited_model (u, model_weight_per_user):
     model_weight_of_u = model_weight_per_user[u]
-    max = model_weight_of_u[0]
+    max = 0
     max_index = 0
-    for i in range(1,2):
+    for i in range(len(model_weight_of_u)):
         if model_weight_of_u[i] > max:
             max = model_weight_of_u[i]
             max_index = i
@@ -321,25 +334,28 @@ def evaluate_adaboost_ensemble(models, model_weight_per_user, train_data, test_d
 
     total_array = np.zeros((542, 1))
     correct_array = np.zeros((542, 1))
-    wrong = np.zeros((542, 1))
+    wrong_array = np.zeros((542, 1))
 
     correct = 0
     total = 0
+    wrong = 0
 
     nbrs = models[0]
+    knn_train_data = train_data[0]
+    mat = nbrs.fit_transform(knn_train_data)
     theta = models[1][0]
-    beta = models[1][2]
+    beta = models[1][1]
     nn_model = models[2]
+    nn_train_data = train_data[2]
+    nn_train_data = torch.FloatTensor(nn_train_data)
     prediction = 0
 
     for i, u in enumerate(test_data["user_id"]):  # i=index u=u_id q=q_id
-
+        print("correct="+str(correct)+";wrong="+str(wrong)+";total="+str(total))
         most_suited_model = pick_suited_model(u, model_weight_per_user)
         q = test_data["question_id"][i]
-
         if most_suited_model == 0:
             # We use NaN-Euclidean distance measure.
-            mat = nbrs.fit_transform(train_data)
             prediction = mat[u][q]
             if prediction > 0.5:
                 prediction = 1
@@ -352,16 +368,24 @@ def evaluate_adaboost_ensemble(models, model_weight_per_user, train_data, test_d
                 prediction = 0
             elif p_a >= 0.5:
                 prediction = 1
+        if most_suited_model == 2:
+            nn_model.eval()
 
-        weight_per_user = correct / total
-        return np.sum((data["is_correct"] == np.array(pred))) \
-               / len(data["is_correct"]), wrong, weight_per_user
+            inputs = Variable(nn_train_data[u]).unsqueeze(0)  # get that user's train data
+            output = nn_model(inputs)  # generate that user's prediction
 
-
-
-
-    return np.sum((data["is_correct"] == np.array(pred))) \
-           / len(data["is_correct"]), wrong, weight_per_user
+            prediction = output[0][test_data["question_id"][i]].item() >= 0.5
+        target = test_data["is_correct"][i]
+        if prediction == target:
+            correct += 1
+            correct_array[u] += 1
+        else:
+            wrong+=1
+            wrong_array[u] += 1
+        total_array[u] += 1
+        total += 1
+    test_acc = correct/float(total)
+    print("lets hope this get over 70:" + str(test_acc))
     return test_acc
 
 def main():
