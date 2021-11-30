@@ -143,7 +143,7 @@ def train_irt(train_data, val_data, test_data):
     print("Validation Accuracy: ", val_score)
     print("Test Accuracy: ", test_score)
 
-    return val_score
+    return (val_score, wrong)
 
 
 def evaluate_irt(data, theta, beta):
@@ -240,20 +240,20 @@ def evaluate_adaboost_ensemble():
         current_training_set,current_zero_training_set,bagging_order = \
             weighted_bagging(train_matrix, sample_weight_matrix, N)
 
-        # current_training_set[0] = train_matrix[0]
-        # current_zero_training_set[0] = zero_train_matrix[0]
+        current_training_set[0] = train_matrix[0]
+        current_zero_training_set[0] = zero_train_matrix[0]
 
 
         valid_acc = 0
         # train
-        if model_index == 2:
+        if model_index == 1:
             valid_acc = train_knn(current_training_set,valid_data,test_data)
-        elif model_index == 0:
+        elif model_index == 2:
             # train IRT
             train_d = train_data.copy()
             train_d = sparse_martix_to_csv_data(current_zero_training_set,train_d)
-            valid_acc, wrong = train_irt(train_d, valid_data, test_data)
-        elif model_index == 1:
+            valid_acc = train_irt(train_d, valid_data, test_data)
+        elif model_index == 0:
             # train neural net
             valid_acc = train_neural_net(current_training_set, current_zero_training_set, valid_data, test_data)
 
