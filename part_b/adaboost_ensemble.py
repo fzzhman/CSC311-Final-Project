@@ -88,7 +88,7 @@ def update_sample_weight(sample_weight_matrix,wrong_samples, model_weight):
 
 def train_knn(current_training_set,current_train_data, valid_data,test_data):
     # train knn
-    k_values = [26]
+    k_values = [48,49,50,51,52,55]
     accuracies_user = []
 
     for i in k_values:
@@ -143,13 +143,13 @@ def train_irt(train_data, val_data, test_data):
     theta, beta, val_log_likelihood, train_log_likelihood = \
         ir.irt(train_data, val_data, lr, iterations)
     val_score, wrong, unused_wpu = evaluate_irt(data=val_data, theta=theta, beta=beta)
-    test_score, wrong, unused_wpu = evaluate_irt(data=test_data, theta=theta, beta=beta)
+    test_score, test_wrong, unused_wpu = evaluate_irt(data=test_data, theta=theta, beta=beta)
     train_score, wrong, train_wpu = evaluate_irt(data=train_data, theta=theta, beta=beta)
 
     print("Validation Accuracy: ", val_score)
     print("Test Accuracy: ", test_score)
 
-    return val_score, wrong, train_wpu, theta, beta
+    return val_score, wrong, train_wpu, theta, beta, test_wrong
 
 
 def evaluate_irt(data, theta, beta):
@@ -287,7 +287,9 @@ def run_adaboost_ensemble():
             models.append(nbrs)
         elif model_index == 1:
             # train IRT
-            valid_acc, train_wrong, train_wpu, theta, beta = train_irt(combined_train_data, valid_data, test_data)
+            valid_acc, train_wrong, train_wpu, theta, beta, test_wrong = \
+                train_irt(combined_train_data, valid_data, test_data)
+            irt_wrong = test_wrong
             models.append((theta, beta))
             train_data_array.append(combined_train_data)
         elif model_index == 2:
@@ -312,7 +314,8 @@ def run_adaboost_ensemble():
         if model_index == 2:
             print("chec")
             model_weight_per_user = model_weight_per_user.transpose()
-    test_acc = evaluate_adaboost_ensemble(models, model_weight_per_user, train_data_array, test_data)
+    valid_acc = evaluate_adaboost_ensemble(models, model_weight_per_user, train_data_array, valid_acc, irt_wrong)
+    test_acc = evaluate_adaboost_ensemble(models, model_weight_per_user, train_data_array, test_data, irt_wrong)
     return str(test_acc)
 
 
@@ -330,11 +333,12 @@ def pick_suited_model (u, model_weight_per_user):
     return max_index
 
 
-def evaluate_adaboost_ensemble(models, model_weight_per_user, train_data, test_data):
+def evaluate_adaboost_ensemble(models, model_weight_per_user, train_data, test_data, irt_wrong):
 
     total_array = np.zeros((542, 1))
     correct_array = np.zeros((542, 1))
     wrong_array = np.zeros((542, 1))
+    wrong_per_model = np.zeros((542,3))
 
     correct = 0
     total = 0
@@ -350,6 +354,7 @@ def evaluate_adaboost_ensemble(models, model_weight_per_user, train_data, test_d
     nn_train_data = torch.FloatTensor(nn_train_data)
     prediction = 0
 
+
     for i, u in enumerate(test_data["user_id"]):  # i=index u=u_id q=q_id
         print("correct="+str(correct)+";wrong="+str(wrong)+";total="+str(total))
         most_suited_model = pick_suited_model(u, model_weight_per_user)
@@ -361,6 +366,12 @@ def evaluate_adaboost_ensemble(models, model_weight_per_user, train_data, test_d
                 prediction = 1
             else:
                 prediction = 0
+            # x = (theta[u] - beta[q]).sum()
+            # p_a = sigmoid(x)
+            # if p_a < 0.5:
+            #     prediction = 0
+            # elif p_a >= 0.5:
+            #     prediction = 1
         if most_suited_model == 1:
             x = (theta[u] - beta[q]).sum()
             p_a = sigmoid(x)
@@ -369,12 +380,19 @@ def evaluate_adaboost_ensemble(models, model_weight_per_user, train_data, test_d
             elif p_a >= 0.5:
                 prediction = 1
         if most_suited_model == 2:
-            nn_model.eval()
-
+            # nn_model.eval()
+            #
             inputs = Variable(nn_train_data[u]).unsqueeze(0)  # get that user's train data
             output = nn_model(inputs)  # generate that user's prediction
-
             prediction = output[0][test_data["question_id"][i]].item() >= 0.5
+            # x = (theta[u] - beta[q]).sum()
+            # p_a = sigmoid(x)
+            # if p_a < 0.5:
+            #     prediction = 0
+            # elif p_a >= 0.5:
+            #     prediction = 1
+
+
         target = test_data["is_correct"][i]
         if prediction == target:
             correct += 1
@@ -382,6 +400,7 @@ def evaluate_adaboost_ensemble(models, model_weight_per_user, train_data, test_d
         else:
             wrong+=1
             wrong_array[u] += 1
+            wrong_per_model[u][most_suited_model] += 1
         total_array[u] += 1
         total += 1
     test_acc = correct/float(total)
