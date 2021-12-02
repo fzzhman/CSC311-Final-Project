@@ -138,7 +138,7 @@ def evaluate_knn_by_user(train_data, valid_data, k):
 
 
 def train_irt(train_data, val_data, test_data):
-    lr, iterations = 0.01, 20
+    lr, iterations = 0.01, 5
 
     theta, beta, val_log_likelihood, train_log_likelihood = \
         ir.irt(train_data, val_data, lr, iterations)
@@ -314,8 +314,10 @@ def run_adaboost_ensemble():
         if model_index == 2:
             print("chec")
             model_weight_per_user = model_weight_per_user.transpose()
-    valid_acc = evaluate_adaboost_ensemble(models, model_weight_per_user, train_data_array, valid_acc, irt_wrong)
-    test_acc = evaluate_adaboost_ensemble(models, model_weight_per_user, train_data_array, test_data, irt_wrong)
+    valid_acc = \
+        evaluate_adaboost_ensemble(models, model_weight_per_user, train_data_array, valid_data, irt_wrong, model_weight)
+    test_acc = \
+        evaluate_adaboost_ensemble(models, model_weight_per_user, train_data_array, test_data, irt_wrong, model_weight)
     return str(test_acc)
 
 
@@ -333,7 +335,7 @@ def pick_suited_model (u, model_weight_per_user):
     return max_index
 
 
-def evaluate_adaboost_ensemble(models, model_weight_per_user, train_data, test_data, irt_wrong):
+def evaluate_adaboost_ensemble(models, model_weight_per_user, train_data, test_data, irt_wrong, model_weight):
 
     total_array = np.zeros((542, 1))
     correct_array = np.zeros((542, 1))
@@ -352,39 +354,40 @@ def evaluate_adaboost_ensemble(models, model_weight_per_user, train_data, test_d
     nn_model = models[2]
     nn_train_data = train_data[2]
     nn_train_data = torch.FloatTensor(nn_train_data)
-    prediction = 0
+    prediction = [0,0,0]
 
 
     for i, u in enumerate(test_data["user_id"]):  # i=index u=u_id q=q_id
         print("correct="+str(correct)+";wrong="+str(wrong)+";total="+str(total))
         most_suited_model = pick_suited_model(u, model_weight_per_user)
+        most_suited_model = -29
         q = test_data["question_id"][i]
-        if most_suited_model == 0:
+        if most_suited_model != 0:
             # We use NaN-Euclidean distance measure.
-            prediction = mat[u][q]
-            if prediction > 0.5:
-                prediction = 1
+            guess = mat[u][q]
+            if guess > 0.5:
+                prediction[0] = 1
             else:
-                prediction = 0
+                prediction[0] = 0
             # x = (theta[u] - beta[q]).sum()
             # p_a = sigmoid(x)
             # if p_a < 0.5:
             #     prediction = 0
             # elif p_a >= 0.5:
             #     prediction = 1
-        if most_suited_model == 1:
+        if most_suited_model != 1:
             x = (theta[u] - beta[q]).sum()
             p_a = sigmoid(x)
             if p_a < 0.5:
-                prediction = 0
+                prediction[1] = 0
             elif p_a >= 0.5:
-                prediction = 1
-        if most_suited_model == 2:
+                prediction[1] = 1
+        if most_suited_model != 2:
             # nn_model.eval()
             #
             inputs = Variable(nn_train_data[u]).unsqueeze(0)  # get that user's train data
             output = nn_model(inputs)  # generate that user's prediction
-            prediction = output[0][test_data["question_id"][i]].item() >= 0.5
+            prediction[2] = output[0][test_data["question_id"][i]].item() >= 0.5
             # x = (theta[u] - beta[q]).sum()
             # p_a = sigmoid(x)
             # if p_a < 0.5:
@@ -393,14 +396,29 @@ def evaluate_adaboost_ensemble(models, model_weight_per_user, train_data, test_d
             #     prediction = 1
 
 
+        for ro in range(len(prediction)):
+            if prediction[ro] == 0:
+                prediction[ro] = -1
+        user_weight = model_weight
+        prediction = prediction * np.array(user_weight)
+
+        # user_weight = model_weight_per_user[u]
+        # prediction = prediction * user_weight.T
+
+        final_prediction = sum(prediction)
+        if final_prediction > 0:
+            final_prediction = 1
+        else:
+            final_prediction = 0
+
         target = test_data["is_correct"][i]
-        if prediction == target:
+        if final_prediction == target:
             correct += 1
             correct_array[u] += 1
         else:
             wrong+=1
             wrong_array[u] += 1
-            wrong_per_model[u][most_suited_model] += 1
+            #wrong_per_model[u][most_suited_model] += 1
         total_array[u] += 1
         total += 1
     test_acc = correct/float(total)

@@ -1,115 +1,127 @@
-# TODO: complete this file.
-
-from sklearn.impute import KNNImputer
-import torch
-from torch import optim
-from torch.autograd import Variable
-import neural_network as nn
-import item_response as ir
-from utils import *
 import numpy as np
+from scipy import sparse
+from sklearn.impute import KNNImputer
+import part_a.item_response as irt
+from torch.autograd import Variable
+import utils
+import part_a.neural_network as nn
+import torch
 
 
-def train_neural_network(valid_data,zero_train_matrix, train_matrix, lr=0.05, l2lambda=0.03, epochs=10, k=10):
-    print("Training NN with lr: {}, l2 lambda: {}, epoch: {}, k: {}".format(lr, l2lambda, epochs, k))
-
-    U, Q = np.shape(zero_train_matrix)
-    model = nn.AutoEncoder(num_question=Q, k=k, p=0)
-    model.train()
-    optimizer = optim.SGD(model.parameters(), lr)
-    for iteration in range(epochs):
-        train_loss = 0
-        for user_id in range(U):
-            inputs = Variable(zero_train_matrix[user_id]).unsqueeze(0)
-            target = inputs.clone()
-
-            optimizer.zero_grad()
-            output = model(inputs)
-
-            # Mask the target to only compute the gradient of valid entries.
-            nan_mask = np.isnan(train_matrix[user_id].unsqueeze(0).numpy())
-            target[0][nan_mask] = output[0][nan_mask]
-
-            loss = torch.sum((output - target) ** 2.)
-            loss += ((l2lambda * 0.5) * model.get_weight_norm())
-            loss.backward()
-
-            train_loss += loss.item()
-            optimizer.step()
-        #valid_acc = evaluate(model, zero_train_matrix, valid_data)
-        print("Epoch: {} \tTraining Cost: {:.6f}\t "
-              "Valid Acc: {}".format(epochs, train_loss, 0))
-    model.eval()
-    return model
+def predict_irt(u_id, q_id, theta, beta):
+    """ Makes a prediction of whether or not u_id will answer
+    q_id correctly given theta and beta.
+    """
+    return irt.sigmoid(theta[u_id] - beta[q_id])
 
 
-def train_ir(train_data):
-    # TODO: Implement once IRT is complete.
-    pass
-
-
-def predict_knn(sparse_user_data, question_id, train_matrix, k=10):
-    knn_mat = torch.cat((train_matrix, sparse_user_data.unsqueeze(0)))
+def predict_knn_by_user(u_id, q_id, matrix, k):
     nbrs = KNNImputer(n_neighbors=k)
-    return nbrs.fit_transform(knn_mat)[-1, question_id]
+    mat = nbrs.fit_transform(matrix)
+    return mat[u_id, q_id]
 
 
-def predict_nn(sparse_user_data, question_id, trained_model):
-    o = trained_model(Variable(sparse_user_data).unsqueeze(0))
-    return o[0][question_id].item()
+def predict_nn(u_id, q_id, zero_data_matrix, model):
+    model.eval()
+    inputs = Variable(zero_data_matrix[u_id]).unsqueeze(0)
+    outputs = model(inputs)
+    return outputs[0][q_id]
 
 
-def predict_ir():
-    # TODO: Implement once IRT is complete.
-    pass
+def prune_users(keep_users, data_set):
+    user_set = set()
+    user_set.update(keep_users)  # hashset for O(n + m) lookup speed
+
+    check_ind = len(data_set["user_id"])
+    while check_ind > 0:
+        check_ind = check_ind - 1
+        u = data_set["user_id"][u]
+        if not u in user_set:
+            del data_set["user_id"][check_ind]
+            del data_set["question_id"][check_ind]
+            del data_set["is_correct"][check_ind]
 
 
-def evaluate_ensemble(n_samples=300):
-    zero_train_matrix, train_matrix, valid_data, test_data = nn.load_data()
-    knn_base_dist = np.random.randint(0, len(train_matrix), n_samples)
-    nn_base_dist = np.random.randint(0, len(train_matrix), n_samples)
-    # TODO: Implement IRT
+def sample_sparse_matrix(n, sparse_matrix, gaurantee_users=True):
+    coords = np.where(not np.isnan(sparse_matrix).any())
+    np.random.choice(coords, n)
+    selection_mask = np.zeros(np.shape(sparse_matrix))
+    selection_mask[coords] = 1
 
-    # Train
-    nn_model = train_neural_network(valid_data,zero_train_matrix[nn_base_dist], train_matrix)
-    # TODO: Implement IRT
+    if gaurantee_users:
+        gaurantee_mask = np.zeros(np.shape(sparse_matrix))
+        for u_id in sparse_matrix.shape()[0]:
+            user_row = sparse_matrix[u_id]
+            q_id = np.random.choice(np.argwhere(~np.isnan(user_row)))
+            gaurantee_mask[u_id, q_id] = 1
+        selection_mask = gaurantee_mask + selection_mask
+        selection_mask[selection_mask > 1] = 1
+    selection_mask[selection_mask == 0] = np.nan
 
-    # Predict
-    knn_correct = 0
-    nn_correct = 0
-    correct = 0
-    total = 0
-    for i, u in enumerate(valid_data["user_id"]):
-        q_id = valid_data["question_id"][i]
+    return np.multiply(sparse_matrix, selection_mask)
 
-        knn_pred = predict_knn(train_matrix[u], q_id, train_matrix)
-        nn_pred = predict_nn(zero_train_matrix[u], q_id, nn_model)
-        # TODO: Implement IRT
 
-        avg = (knn_pred + nn_pred) / 2
-        # TODO: Implement IRT
-
-        actual = bool(valid_data["is_correct"][i])
-        if (avg >= 0.5) == actual:
-            correct += 1
-            total += 1
-        if (knn_pred >= 0.5) == actual:
-            knn_correct += 1
-        if (nn_pred >= 0.5) == actual:
-            nn_correct += 1
-        print("Iteration: {}, Current correct: {}, Current kNN correct: {}, Current NN correct: {}".format(i, correct,
-                                                                                                           knn_correct,
-                                                                                                           nn_correct))
-    return {
-        "ensemble_acc": correct / float(total),
-        "knn_bagged_acc": knn_correct / float(total),
-        "nn_bagged_acc": nn_correct / float(total)
+def matrix_to_dict(sparse_matrix):
+    sampled_data = {
+        "user_id": [],
+        "question_id": [],
+        "is_correct": []
     }
 
+    mat_pts = np.where(not np.isnan(sparse_matrix))
+    for pt in mat_pts:
+        u_id, q_id = pt
+        is_correct = mat_pts[pt]
+        sampled_data["user_id"].append(u_id)
+        sampled_data["question_id"].append(q_id)
+        sampled_data["is_correct"].append(is_correct)
+    return sampled_data
 
-def main():
-    print(evaluate_ensemble(n_samples=400))
+
+def evaluate_ensemble(n=200):
+    train_data = utils.load_train_csv("../data")
+    sparse_matrix = utils.load_train_sparse("../data").toarray()
+    zero_sparse_matrix = sparse_matrix.copy()
+    zero_sparse_matrix[np.isnan(sparse_matrix)] = 0
+    val_data = utils.load_valid_csv("../data")
+    test_data = utils.load_public_test_csv("../data")
+
+    num_users, num_questions = np.shape(sparse_matrix)
+
+    # Train IRT
+    irt_model = irt.irt(matrix_to_dict(sample_sparse_matrix(n, sparse_matrix)), val_data, 0.01, 20)
+
+    # Train NN
+    sub_sparse_matrix = sample_sparse_matrix(n, sparse_matrix, False)
+    sub_zero_matrix = sub_sparse_matrix.copy()
+    sub_zero_matrix[np.isnan(sub_zero_matrix)] = 0
+    nn_model = nn.AutoEncoder(num_questions, 5)
+    nn.train(nn_model, 0.05, 0.00025, sub_sparse_matrix, sub_zero_matrix, 40, verbosity_mode=False)
+
+    correct_pred = 0
+    total = 0
+    for i, u_id in enumerate(val_data["user_id"]):
+        q_id = val_data["question_id"][i]
+        answer_correct = val_data["is_correct"][i]
+
+        # Eval IRT
+        irt_prediction = predict_irt(u_id, q_id, irt_model[0], irt_model[1])
+
+        # Eval NN
+        nn_prediction = predict_nn(u_id, q_id, zero_sparse_matrix, nn_model)
+
+        # Eval kNN
+        knn_prediction = predict_knn_by_user(u_id, q_id, sparse_matrix,
+                                             11)  # TODO: By item may have slightly higher accuracy.
+
+        ensemble_prediction = irt_prediction + nn_prediction + knn_prediction
+        ensemble_prediction = ensemble_prediction / 3.0
+        ensemble_ind = ensemble_prediction >= 0.5
+        if ensemble_ind == answer_correct:
+            correct_pred = correct_pred + 1
+        total = 0
+    print("Final acc: {}".format(correct_pred / total))
 
 
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    print(evaluate_ensemble())
