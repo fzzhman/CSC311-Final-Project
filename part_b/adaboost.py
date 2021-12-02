@@ -186,7 +186,7 @@ def train_neural_net(train_data, zero_train_data, current_train_data, valid_data
     train_data = torch.FloatTensor(train_data)
     zero_train_data = torch.FloatTensor(zero_train_data)
 
-    model = nn.AutoEncoder(num_question=len(train_data[0]), k=10, p=0)
+    model = nn.AutoEncoder(num_question=len(train_data[0]), k=10)
     print("training neural net")
     print("k* = " + str(10) + "; learning rate = " + str(0.05)
           + "; num_epoch = " + str(20) + "; lamb=" + str(0.00025) + "; p=" + str(0))
@@ -312,7 +312,7 @@ def run_adaboost_ensemble():
         if model_index == 2:
             print("chec")
             model_weight_per_user = model_weight_per_user.transpose()
-    valid_acc = evaluate_adaboost_ensemble(models, model_weight_per_user, train_data_array, valid_acc, irt_wrong)
+    valid_acc = evaluate_adaboost_ensemble(models, model_weight_per_user, train_data_array, valid_data, irt_wrong)
     test_acc = evaluate_adaboost_ensemble(models, model_weight_per_user, train_data_array, test_data, irt_wrong)
     return str(test_acc)
 
@@ -403,6 +403,8 @@ def evaluate_adaboost_ensemble(models, model_weight_per_user, train_data, test_d
 
 
 def main():
+    knn_param = []
+
     print(run_adaboost_ensemble())
 
 
