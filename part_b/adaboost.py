@@ -344,7 +344,7 @@ def run_adaboost_ensemble():
             # train neural net
             print(np.shape(current_zero_train_set))
             model, train_acc, train_wrong, train_wpu = train_neural_net(current_train_set,
-                                                                        current_zero_train_set,
+                                                                        current_train_set,
                                                                         train_data,
                                                                         valid_data,
                                                                         test_data)
