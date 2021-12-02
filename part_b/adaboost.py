@@ -2,7 +2,9 @@
 
 from sklearn.impute import KNNImputer
 import torch
+import itertools
 from torch import optim
+from scipy import sparse
 from torch.autograd import Variable
 import part_a.neural_network as nn
 import part_a.item_response as ir
@@ -47,6 +49,38 @@ def sigmoid(x):
     return np.exp(x) / (1 + np.exp(x))
 
 
+def sample_sparse_matrix(n, sparse_matrix, user_weights, guarantee_users=True):
+    sparse_mat_shape = np.shape(sparse_matrix)
+    num_users, num_questions = sparse_mat_shape
+    composite = np.empty(sparse_mat_shape)
+    composite[:] = np.nan
+    #sparse_matrix = sparse_matrix.toarray()
+
+    if len(user_weights) == 0:
+        user_weights = np.full(num_users, 1 / num_users)
+
+    if guarantee_users:
+        composite = sparse_matrix
+
+    formatted_weight = np.full(len(user_weights), 1 / len(user_weights))
+    for i in range(len(formatted_weight)):
+        formatted_weight[i] = user_weights[i]
+
+    selected = np.random.choice(num_users, n, replace=True, p=formatted_weight)
+    primed = set()
+
+    for user in selected:
+
+        row = np.expand_dims(sparse_matrix[user], 0)
+        if user in primed:
+            composite = np.concatenate((composite, row))
+        else:
+            primed.add(user)
+            composite[user] = row
+
+    return composite  # No reason other than to maintain standard.
+
+
 def weighted_bagging(train_matrix, weight_matrix, N):
     bagging_order = weight_matrix.copy()
     current_training_set = train_matrix.copy()
@@ -55,6 +89,7 @@ def weighted_bagging(train_matrix, weight_matrix, N):
     for i in range(N):
         n = rng.uniform(0, 1)  # get a number between 1 and zero
         current_bottom = 0
+
 
         for sample_index in range(len(weight_matrix)):
             current_top = current_bottom + weight_matrix[sample_index]
@@ -89,7 +124,7 @@ def update_sample_weight(sample_weight_matrix, wrong_samples, model_weight):
 
 def train_knn(current_training_set, current_train_data, valid_data, test_data):
     # train knn
-    k_values = [48, 49, 50, 51, 52, 55]
+    k_values = [49]
     accuracies_user = []
 
     for i in k_values:
@@ -130,6 +165,10 @@ def evaluate_knn_by_user(train_data, valid_data, k):
             wrong[u] += 1
         total += 1
         total_array[u] += 1
+
+    for i in range(len(total_array)):
+        if total_array[i] == 0:
+            total_array[i] = 1
 
     wpu = correct_array / total_array
 
@@ -177,6 +216,9 @@ def evaluate_irt(data, theta, beta):
 
         total_a[u] += 1
         total += 1
+    for i in range(len(total_a)):
+        if total_a[i] == 0:
+            total_a[i] = 1
     weight_per_user = correct_a / total_a
 
     return correct / float(total), wrong_a, weight_per_user
@@ -186,17 +228,18 @@ def train_neural_net(train_data, zero_train_data, current_train_data, valid_data
     train_data = torch.FloatTensor(train_data)
     zero_train_data = torch.FloatTensor(zero_train_data)
 
+    epoch = 40
     model = nn.AutoEncoder(num_question=len(train_data[0]), k=10)
     print("training neural net")
     print("k* = " + str(10) + "; learning rate = " + str(0.05)
-          + "; num_epoch = " + str(20) + "; lamb=" + str(0.00025) + "; p=" + str(0))
+          + "; num_epoch = " + str(epoch) + "; lamb=" + str(0.00025) + "; p=" + str(0))
     nn.train(model,
              lr=0.05,
              lamb=0.00025,
              train_data=train_data,
              zero_train_data=zero_train_data,
              valid_data=valid_data,
-             num_epoch=5)
+             num_epoch=epoch)
     test_acc, wrong, test_wpu = evaluate_nn(model, zero_train_data, test_data)
     print("Test Acc: {}".format(test_acc))
 
@@ -227,18 +270,24 @@ def evaluate_nn(model, train_data, valid_data):
 
         total += 1
         total_array[u] += 1
+    for i in range(len(total_array)):
+        if total_array[i] == 0:
+            total_array[i] = 1
     wpu = correct_array / total_array
     return correct / float(total), wrong, wpu
 
 
 def sparse_martix_to_csv_data(matrix, train_array):
     index = 0
-    for u in range(len(matrix)):
-        for q in range(len(matrix[u])):
-            if not (np.isnan(matrix[u][q])):
+    u_length = np.shape(matrix)[0]
+    q_length = np.shape(matrix)[1]
+    for u in range(u_length):
+        for q in range(q_length):
+            value = matrix[u][q]
+            if not (np.isnan(value)):
                 train_array["user_id"][index] = u
                 train_array["question_id"][index] = q
-                train_array["is_correct"][index] = matrix[u][q]
+                train_array["is_correct"][index] = value
                 index += 1
             if index == len(train_array):
                 break
@@ -262,24 +311,19 @@ def run_adaboost_ensemble():
     train_data_array = []
     for model_index in range(3):
         # bootstrap
-        current_training_set, current_zero_training_set, bagging_order = \
-            weighted_bagging(train_matrix, sample_weight_matrix, N)
-
-        # current_training_set[0] = train_matrix[0]
-        # current_zero_training_set[0] = zero_train_matrix[0]
-        print(np.shape(current_training_set))
-        combined_training_set = np.concatenate((train_matrix, current_training_set), axis=0)
-        combined_zero_training_set = np.concatenate((zero_train_matrix, current_zero_training_set), axis=0)
+        sample_size = 542
+        current_train_set = sample_sparse_matrix(sample_size,train_matrix, user_weights=sample_weight_matrix)
 
         valid_acc = 0
-        combined_train_data = train_data.copy()
-        combined_train_data = sparse_martix_to_csv_data(combined_zero_training_set, combined_train_data)
+        curret_train_data = train_data.copy()
+        curret_train_data = dict(itertools.islice(curret_train_data.items(), sample_size))
+        curret_train_data = sparse_martix_to_csv_data(current_train_set, curret_train_data)
 
         # train
         if model_index == 0:
-            knn_train_set = combined_training_set.copy()
-            train_data_array.append(combined_training_set)
-            valid_acc, train_wrong, train_wpu = train_knn(current_training_set, combined_train_data, valid_data,
+            knn_train_set = current_train_set.copy()
+            train_data_array.append(current_train_set)
+            valid_acc, train_wrong, train_wpu = train_knn(current_train_set, curret_train_data, valid_data,
                                                           test_data)
             nbrs = KNNImputer(n_neighbors=26)
             # We use NaN-Euclidean distance measure.
@@ -287,20 +331,23 @@ def run_adaboost_ensemble():
         elif model_index == 1:
             # train IRT
             valid_acc, train_wrong, train_wpu, theta, beta, test_wrong = \
-                train_irt(combined_train_data, valid_data, test_data)
+                train_irt(curret_train_data, valid_data, test_data)
             irt_wrong = test_wrong
             models.append((theta, beta))
-            train_data_array.append(combined_train_data)
+            train_data_array.append(current_train_set)
         elif model_index == 2:
+            # Fill in the missing entries to 0.
+            current_zero_train_set = current_train_set.copy()
+            current_zero_train_set[np.isnan(current_train_set)] = 0
             # train neural net
-            print(np.shape(current_training_set))
-            model, valid_acc, train_wrong, train_wpu = train_neural_net(combined_training_set,
-                                                                        combined_zero_training_set,
-                                                                        combined_train_data,
+            print(np.shape(current_zero_train_set))
+            model, valid_acc, train_wrong, train_wpu = train_neural_net(current_train_set,
+                                                                        current_zero_train_set,
+                                                                        curret_train_data,
                                                                         valid_data,
                                                                         test_data)
             models.append(model)
-            train_data_array.append(combined_zero_training_set)
+            train_data_array.append(current_zero_train_set)
 
         model_weight[model_index] = 0.5 * np.log(valid_acc / (1 - valid_acc))
 
@@ -313,6 +360,7 @@ def run_adaboost_ensemble():
             print("chec")
             model_weight_per_user = model_weight_per_user.transpose()
     valid_acc = evaluate_adaboost_ensemble(models, model_weight_per_user, train_data_array, valid_data, irt_wrong)
+    print("valid_acc="+valid_acc)
     test_acc = evaluate_adaboost_ensemble(models, model_weight_per_user, train_data_array, test_data, irt_wrong)
     return str(test_acc)
 
@@ -403,8 +451,12 @@ def evaluate_adaboost_ensemble(models, model_weight_per_user, train_data, test_d
 
 
 def main():
-    knn_param = []
 
+    k_values = [48,49,50,51,52]
+    irt_lr = []
+    irt_iteration = []
+    knn_param = []
+    knn_param.append(k_values)
     print(run_adaboost_ensemble())
 
 

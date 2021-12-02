@@ -1,3 +1,5 @@
+import sys
+
 from utils import *
 from torch.autograd import Variable
 
@@ -38,7 +40,7 @@ def load_data(base_path="../data"):
 
 
 class AutoEncoder(nn.Module):
-    def __init__(self, num_question, k):
+    def __init__(self, num_question, k=100):
         """ Initialize a class AutoEncoder.
 
         :param num_question: int
@@ -70,27 +72,16 @@ class AutoEncoder(nn.Module):
         # Implement the function as described in the docstring.             #
         # Use sigmoid activations for f and g.                              #
         #####################################################################
-
-        encoder = nn.Sequential(
-            self.g,
-            nn.Sigmoid()
-
-        )
-        decoder = nn.Sequential(
-            self.h,
-            nn.Sigmoid()
-        )
-
-        encoded = encoder(inputs)
-        decoded = decoder(encoded)
-        out = decoded
+        encoder = torch.sigmoid(self.g(inputs))
+        decoder = torch.sigmoid(self.h(encoder))
+        out = decoder
         #####################################################################
         #                       END OF YOUR CODE                            #
         #####################################################################
         return out
 
 
-def train(model, lr, lamb, train_data, zero_train_data, valid_data, num_epoch):
+def train(model, lr, lamb, train_data, zero_train_data, num_epoch, valid_data=None, verbosity=1):
     """ Train the neural network, where the objective also includes
     a regularizer.
 
@@ -99,17 +90,17 @@ def train(model, lr, lamb, train_data, zero_train_data, valid_data, num_epoch):
     :param lamb: float
     :param train_data: 2D FloatTensor
     :param zero_train_data: 2D FloatTensor
-    :param valid_data: Dict
     :param num_epoch: int
+    :param valid_data: Dict
     :return: None
     """
-    # TODO: Add a regularizer to the cost function. 
-    
+    # TODO: Add a regularizer to the cost function.
+
     # Tell PyTorch you are training the model.
     model.train()
 
     # Define optimizers and loss function.
-    optimizer = optim.SGD(model.parameters(), lr=lr)
+    optimizer = optim.SGD(model.parameters(), lr=lr, weight_decay=lamb)
     num_student = train_data.shape[0]
 
     for epoch in range(0, num_epoch):
@@ -127,17 +118,21 @@ def train(model, lr, lamb, train_data, zero_train_data, valid_data, num_epoch):
             target[0][nan_mask] = output[0][nan_mask]
 
             loss = torch.sum((output - target) ** 2.)
-            loss += ((lamb * 0.5) * model.get_weight_norm())
+            loss += (lamb/2)*model.get_weight_norm()
             loss.backward()
 
             train_loss += loss.item()
             optimizer.step()
-
-
-
-        valid_acc = evaluate(model, zero_train_data, valid_data)
-        print("Epoch: {} \tTraining Cost: {:.6f}\t "
-              "Valid Acc: {}".format(epoch, train_loss, valid_acc))
+        if not valid_data == None:
+            valid_acc = evaluate(model, zero_train_data, valid_data)
+            if verbosity == 2:
+                print("{}/{}\t{:.6f}\t{}".format((epoch + 1), num_epoch, train_loss, valid_acc))
+            elif verbosity == 1:
+                sys.stdout.write(
+                    "\rEpoch: {}/{}, Loss: {:.6f}, Valid acc.: {}".format((epoch + 1), num_epoch, train_loss,
+                                                                          valid_acc))
+    print("\nFinal training results:")
+    print("\rEpoch: {}/{}, Loss: {:.6f}, Valid acc.: {}".format((epoch + 1), num_epoch, train_loss, valid_acc))
     #####################################################################
     #                       END OF YOUR CODE                            #
     #####################################################################
@@ -170,8 +165,7 @@ def evaluate(model, train_data, valid_data):
 
 
 def main():
-    zero_train_matrix, train_matrix, valid_data, test_data = load_data()
-    print(len(train_matrix[0]), torch.max(train_matrix))
+    zero_train_matrix, train_matrix, valid_data, test_data = load_data("data")
 
     #####################################################################
     # TODO:                                                             #
@@ -179,24 +173,45 @@ def main():
     # validation set.                                                   #
     #####################################################################
     # Set model hyperparameters.
-    k_set = [10, 50, 100, 200, 500]  # k=10 works best
+    ks = [3, 5, 7]
+    lrs = [0.025, 0.05, 0.075]
+    num_epochs = [20, 40, 60]
+    lambs = [0.0001, 0.00025, 0.0005]
+    model = None
 
+    u, q = train_matrix.shape
+    acc_star = 0
+    k_star = 0
+    lr_star = 0
+    num_epoch_star = 0
+    lamb_star = 0
+    for k in ks:
+        print("Starting k, learning rate, number of epochs, and lambda optimizations.")
 
-    # Set optimization hyperparameters.
-    lr = 0.05  # learning rate
-    num_epoch = 30  # 1 = go through all train data for 1 time
-    lamb = [0.001, 0.01, 0.1, 1]  # lambda for L2 Regularization
-
-    for i in range(0, 4):
-        model = AutoEncoder(num_question=len(train_matrix[0]), k=k_set[0])
-        print("k* = "+str(k_set[0])+"; learning rate = "+ str(lr)
-              + "; num_epoch = " + str(num_epoch)+"; lamb="+str(lamb[i]))
-        train(model, lr, lamb[i], train_matrix, zero_train_matrix,
-              valid_data, num_epoch)
-        test_acc = evaluate(model, zero_train_matrix, test_data)
-        print("Test Acc: {}".format(test_acc))
-
-
+        for lr in lrs:
+            for num_epoch in num_epochs:
+                for lamb in lambs:
+                    print("\tk\tLearn. Rate\t# of Epochs\tLambda")
+                    print("\t{}\t{}\t{}\t{}".format(k, lr, num_epoch, lamb))
+                    model = AutoEncoder(q, k)
+                    train(model, lr, lamb, train_matrix, zero_train_matrix, num_epoch, valid_data, verbosity=2)
+                    acc = evaluate(model, zero_train_matrix, valid_data)
+                    if acc > acc_star:
+                        print("\tFinal accuracy*\t{}".format(acc))
+                        acc_star = acc
+                        k_star = k
+                        lr_star = lr
+                        num_epoch_star = num_epoch
+                        lamb_star = lamb
+                    else:
+                        print("\tFinal accuracy\t{}".format(acc))
+        print("Concluding learning rate, number of epoch and lambda optimizations.")
+        print("Results:")
+        print("\tFinal acc.:\t{}".format(acc_star))
+        print("\tk*:\t{}".format(k_star))
+        print("\tLearning rate*:\t{}".format(lr_star))
+        print("\tNumber of epochs*:\t{}".format(num_epoch_star))
+        print("\tLambda*:\t{}".format(lamb_star))
 
     #####################################################################
     #                       END OF YOUR CODE                            #
