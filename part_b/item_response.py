@@ -1,6 +1,7 @@
-import sys
 from utils import *
-
+import random
+import matplotlib.pyplot as plt
+from scipy.sparse import csr_matrix
 import numpy as np
 
 
@@ -10,11 +11,9 @@ def sigmoid(x):
     return np.exp(x) / (1 + np.exp(x))
 
 
-def neg_log_likelihood(sparse_matrix, theta, beta):
+def neg_log_likelihood(data, theta, beta):
     """ Compute the negative log-likelihood.
-
     You may optionally replace the function arguments to receive a matrix.
-
     :param data: A dictionary {user_id: list, question_id: list,
     is_correct: list}
     :param theta: Vector
@@ -25,31 +24,29 @@ def neg_log_likelihood(sparse_matrix, theta, beta):
     # TODO:                                                             #
     # Implement the function as described in the docstring.             #
     #####################################################################
-    sparse_matrix = sparse_matrix.toarray()
+    log_likelihood = 0.
 
-    num_users, num_questions = np.shape(sparse_matrix)
-    theta_mat = np.tile(np.expand_dims(theta, 1), (1, num_questions))
-    beta_mat = np.tile(np.expand_dims(beta, 0), (num_users, 1))
+    for i in range(len(data["user_id"])):
+        user = data["user_id"][i]
+        question = data["question_id"][i]
+        correct = data["is_correct"][i]
 
-    log_lklihood = sparse_matrix * np.log(sigmoid(theta_mat - beta_mat)) + (1-sparse_matrix) * (1 - sigmoid(theta_mat - beta_mat))
-    log_lklihood[np.isnan(log_lklihood)] = 0
-    log_lklihood = np.sum(log_lklihood) # Only include positives, and sum instead of multiply (log)
+        x = theta[user] - beta[question]
+
+        log_likelihood += correct*(np.log(sigmoid(x)))
     #####################################################################
     #                       END OF YOUR CODE                            #
     #####################################################################
-    return -log_lklihood
+    return -log_likelihood
 
 
-def update_theta_beta(sparse_matrix, lr, theta, beta):
+def update_theta_beta(data, lr, theta, beta):
     """ Update theta and beta using gradient descent.
-
     You are using alternating gradient descent. Your update should look:
     for i in iterations ...
         theta <- new_theta
         beta <- new_beta
-
     You may optionally replace the function arguments to receive a matrix.
-
     :param data: A dictionary {user_id: list, question_id: list,
     is_correct: list}
     :param lr: float
@@ -61,35 +58,28 @@ def update_theta_beta(sparse_matrix, lr, theta, beta):
     # TODO:                                                             #
     # Implement the function as described in the docstring.             #
     #####################################################################
-    num_users, num_questions = np.shape(sparse_matrix)
+    user_i_arr = np.array(data["user_id"])
+    question_j_arr = np.array(data["question_id"])
+    correct_ij_arr = np.array(data["is_correct"])
 
-    c_mat = sparse_matrix.toarray()
+    theta_copy = theta.copy()
+    beta_copy = beta.copy()
+    for i in range(len(theta)):
+        theta[i] -= lr * (np.sum(sigmoid(theta_copy[i] - beta_copy)[question_j_arr[user_i_arr == i]])
+                          - np.sum(correct_ij_arr[user_i_arr == i]))
 
-    theta_mat = np.tile(np.expand_dims(theta, 1), (1, num_questions))
-    beta_mat = np.tile(np.expand_dims(beta, 0), (num_users, 1))
-
-    theta_grad = c_mat - sigmoid(theta_mat - beta_mat)
-    theta_grad = -theta_grad # negative log likelihood
-    theta_grad[np.isnan(theta_grad)] = 0
-    theta_grad_collapsed = np.sum(theta_grad, 1)
-    theta = theta - (lr * theta_grad_collapsed)
-
-    beta_grad = -c_mat + sigmoid(theta_mat - beta_mat)
-    beta_grad = -beta_grad # negative log likelihood
-    beta_grad[np.isnan(beta_grad)]  = 0
-    beta_grad_collapsed = np.sum(beta_grad, 0)
-    beta = beta - (lr * beta_grad_collapsed)
-
+    for j in range(len(beta)):
+        beta[j] -= lr * (np.sum(correct_ij_arr[question_j_arr == j]) -
+                         np.sum(sigmoid(theta_copy - beta_copy[j])[user_i_arr[question_j_arr == j]]))
     #####################################################################
     #                       END OF YOUR CODE                            #
     #####################################################################
     return theta, beta
 
-def irt(sparse_matrix, val_data, lr, iterations, step_func = update_theta_beta, verbosity = 1):
+
+def irt(data, val_data, lr, iterations):
     """ Train IRT model.
-
     You may optionally replace the function arguments to receive a matrix.
-
     :param data: A dictionary {user_id: list, question_id: list,
     is_correct: list}
     :param val_data: A dictionary {user_id: list, question_id: list,
@@ -99,47 +89,47 @@ def irt(sparse_matrix, val_data, lr, iterations, step_func = update_theta_beta, 
     :return: (theta, beta, val_acc_lst)
     """
     # TODO: Initialize theta and beta.
-    num_users, num_questions = np.shape(sparse_matrix)
-    rng = np.random.default_rng()
-    theta = np.asarray(rng.uniform(0.001, 1, num_users)) # Size is of number of users based on ID.
-    beta = np.asarray(rng.uniform(0.001, 1, num_questions)) # Size is of number of questions based on question ID.
+    np.random.seed(1)
+    theta = np.random.rand(542)  # init theta randomly
+    beta = np.random.rand(1774)  # init beta randomly
 
-    val_acc_lst = []
+    val_log_likelihood, train_log_likelihood = [], []
 
     for i in range(iterations):
-        neg_lld = neg_log_likelihood(sparse_matrix, theta=theta, beta=beta)
-        score = evaluate(data=val_data, theta=theta, beta=beta)
-        val_acc_lst.append(score)
-        if verbosity == 2:
-            print("It.: {} NLLK: {} \t Score: {}".format(i, neg_lld, score))
-        elif verbosity == 1:
-            sys.stdout.write("\rIt.: {} \t NLLK: {} \t Score: {}".format(i, neg_lld, score))
-        theta, beta = step_func(sparse_matrix, lr, theta, beta)
-    if verbosity == 1:
-        print()
-    print("Final results: NLLK: {} \t Score: {}".format(neg_lld, score))
+        # Log likelihood
+        train_neg_lld = neg_log_likelihood(data, theta=theta, beta=beta)
+        train_log_likelihood.append(train_neg_lld)
+        val_neg_lld = neg_log_likelihood(val_data, theta=theta, beta=beta)
+        val_log_likelihood.append(val_neg_lld)
 
-    # TODO: You may change the return values to achieve what you want.
-    return theta, beta, val_acc_lst
+        train_score = evaluate(data=data, theta=theta, beta=beta)
+        val_score = evaluate(data=val_data, theta=theta, beta=beta)
+        #
+        print("NLLK: {} \t Train Score: {} \t Validation Score: {}"
+              .format(train_neg_lld, train_score, val_score))
+        theta, beta = update_theta_beta(data, lr, theta, beta)
+
+        #  TODO: You may change the return values to achieve what you want.
+    return theta, beta, val_log_likelihood, train_log_likelihood
 
 
 def evaluate(data, theta, beta):
     """ Evaluate the model given data and return the accuracy.
     :param data: A dictionary {user_id: list, question_id: list,
     is_correct: list}
-
     :param theta: Vector
     :param beta: Vector
     :return: float
     """
-    pred = []
-    for i, q in enumerate(data["question_id"]):
-        u = data["user_id"][i]
-        x = (theta[u] - beta[q]).sum()
-        p_a = sigmoid(x)
-        pred.append(p_a >= 0.5)
-    return np.sum((data["is_correct"] == np.array(pred))) \
+    predictions = []
+    for i, j in enumerate(data["question_id"]):
+        users = data["user_id"][i]
+        x = (theta[users] - beta[j]).sum()
+        prediction_a = sigmoid(x)
+        predictions.append(prediction_a >= 0.5)
+    return np.sum((data["is_correct"] == np.array(predictions))) \
            / len(data["is_correct"])
+
 
 def main():
     train_data = load_train_csv("../data")
@@ -153,32 +143,48 @@ def main():
     # Tune learning rate and number of iterations. With the implemented #
     # code, report the validation and test accuracy.                    #
     #####################################################################
-    iteration_sets = [45, 180, 185, 190]
-    lrs = [0.001, 0.005]
+    lr, iterations = 0.009, 20
+    theta, beta, val_log_likelihood, train_log_likelihood= \
+        irt(train_data, val_data, lr, iterations)
+    val_score = evaluate(data=val_data, theta=theta, beta=beta)
+    test_score = evaluate(data=test_data, theta=theta, beta=beta)
+    print("Chosen lr parameter: ", lr)
+    print("Chosen number of iterations: ", iterations)
 
-    lr_star = None
-    iterations_star = None
-    acc_star = 0
-    for iterations in iteration_sets:
-        for lr in lrs:
-            print("Training with lr of {} and {} number of iterations.".format(lr, iterations))
-            theta, beta, step_accs = irt(sparse_matrix, val_data, lr, iterations, verbosity=2)
-            acc = evaluate(val_data, theta, beta)
-            print("Final accuracy: {}".format(acc))
-            if acc > acc_star:
-                acc_star = acc
-                lr_star = lr
-                iterations_star = iterations
-    print("lr*: {} iterations*: {} acc*: {}".format(lr_star, iterations_star, acc_star))
+    print("Validation Accuracy: ", val_score)
+    print("Test Accuracy: ", test_score)
+
     #####################################################################
+    # Part (b) Plots
+    plt.plot(train_log_likelihood, label="train")
+    plt.plot(val_log_likelihood, label="valid")
+    plt.ylabel("Negative Log Likelihood")
+    plt.xlabel("Iteration")
+    plt.xticks(np.arange(0, iterations, 1))
+    plt.title("Neg Log Likelihood for Train and Validation Data")
+    plt.legend()
+    plt.show()
+    #########################################################
     #                       END OF YOUR CODE                            #
     #####################################################################
 
     #####################################################################
     # TODO:                                                             #
-    # Implement part (d)                                                #
+    # Implement part (d)
+    np.random.seed(212)
+    questions = random.sample(val_data["question_id"], 3)
+    # randomly chose 3 questions from validation data
+    theta = theta.reshape(-1)
+    theta.sort()
+    for q in questions:
+        plt.plot(theta, sigmoid(theta - beta[q]),
+                 label=f"Question {q}")
+    plt.ylabel("Probability")
+    plt.xlabel("Theta")
+    plt.title("Selected Questions Probability as a function of Theta")
+    plt.legend()
+    plt.show()
     #####################################################################
-    pass
     #####################################################################
     #                       END OF YOUR CODE                            #
     #####################################################################
@@ -186,3 +192,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
