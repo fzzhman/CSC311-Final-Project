@@ -12,52 +12,12 @@
 \title{CSC311 - Final Assignment}
 \author{Zelong Liu, Fizzah Mansoor, Harrison Deng}
 
+\pylabc[KNN]{from fig_gen_utils import *}
+\pylabc[IRT]{from fig_gen_utils import *}
+\pylabc[NN]{from fig_gen_utils import *}
+\pylabc[ENSEMBLE]{from fig_gen_utils import *}
+
 \begin{document}
-    \begin{pylabcode}
-        import glob
-        import shutil
-        import os
-        ### Setting up PythonTex environment. ###
-
-        # Copy necessary code #
-        for p in glob.glob("../code/**/*.py"):
-            pytex.add_dependencies(p)
-        
-        if os.path.exists("./codebase"):
-            shutil.rmtree("./codebase")
-        shutil.copytree("../code/", "./codebase")
-        for p in glob.glob("./codebase/**/*"):
-            pytex.add_created(p)
-
-        # Setting up automatic graphic inclusion #
-        fig_info = {
-            "dir": "./figures/generated/",
-            "basename": '_'.join([pytex.session, pytex.family, pytex.restart]),
-            "num": 0
-        }
-        pytex.fig_info = fig_info
-
-        def gen_figure(scale = 0.8, fig_num = None):
-
-            nums = []
-            if fig_num != None:
-                nums.append(fig_num)
-            else:
-                nums = get_fignums()
-            fig_info = pytex.fig_info
-            results = ""
-            for num in nums:
-                name = fig_info["basename"] + "_fig" + str(fig_info["num"]) + ".pdf"
-                path = fig_info["dir"] + name
-                fig_info["num"] = fig_info["num"] + 1
-                figure(num)
-                savefig(path)
-                close(num)
-                pytex.add_created(path)
-                results = results + "\\includegraphics[scale={}]".format(scale) + "{" + path + "}\n\n"
-            return results
-    \end{pylabcode}
-
 
     \maketitle
 
@@ -73,20 +33,20 @@
     \subsection{Complete Main kNN, Plot and Report Accuracy}
     The implementation of all code is in the \verb|part_a/knn.py| file. Following are plots of accuracy on validation data as a function of $k \in \{1,6,11,16,21,26\}$:
 
-    \begin{pylabblock}
+    \begin{pylabblock}[KNN]
         import codebase.part_a.knn as knn
         k_vals, val_user_acc, val_item_acc = knn.main("./codebase/data")
     \end{pylabblock}
 
-    \begin{pylabblock}
+    \begin{pylabblock}[KNN]
         knn.accuracy_plot(k_vals, val_user_acc, "User-Based Collaborative Filtering")
     \end{pylabblock}
-    \pylab{gen_figure()}
+    \pylab[KNN]{gen_figure(pytex)}
 
-    \begin{pylabblock}
+    \begin{pylabblock}[KNN]
         knn.accuracy_plot(k_vals, val_item_acc, "Item-Based Collaborative Filtering")
     \end{pylabblock}
-    \pylab{gen_figure()}
+    \pylab[KNN]{gen_figure(pytex)}
 
     
 
@@ -139,14 +99,14 @@
     \subsection{Implementation of IRT}
     The implementation of IRT is in \verb|part_a/item_response.py|. We chose the hyperparameters $\alpha$ and iterations number by performing multiple combinations of them and seeing which one had the highest validation score (automated, see mentioned code file for this automation). We then manually adjusted the set of tested values and repeated. Doing this a few times resulted in:
 
-    \begin{pylabblock}
+    \begin{pylabblock}[IRT]
         import codebase.part_a.item_response as irt
         print()
         irt_results = irt.main("./codebase/data")
     \end{pylabblock}
     \printpythontex[verb]
 
-    \pylab{gen_figure(fig_num=1)}
+    \pylab[IRT]{gen_figure(pytex, fig_num=1)}
 
     \medskip
 
@@ -158,7 +118,7 @@
 
     \noindent
     Our validation accuracy:
-    \begin{pylabblock}
+    \begin{pylabblock}[IRT]
         print(irt_results["val_acc"])
     \end{pylabblock}
     \printpythontex[verb]
@@ -167,14 +127,14 @@
 
     \noindent
     Test accuracy:
-    \begin{pylabblock}
+    \begin{pylabblock}[IRT]
         print(irt_results["test_acc"])
     \end{pylabblock}
     \printpythontex[verb]
 
     \subsection{Plots of Questions With Respect to $\bm{\theta}$ and $\bm{\beta}$}
 
-    \pylab{gen_figure(fig_num=2)}
+    \pylab[IRT]{gen_figure(pytex, fig_num=2)}
 
     \pagebreak
 
@@ -191,7 +151,7 @@
     This part can be found in \verb|part_a/neural_network.py|.
 
     \subsection{Tuning and Training NN}
-    \begin{pylabblock}
+    \begin{pylabblock}[NN]
         import codebase.part_a.neural_network as nn
         nn.main(data_path="./codebase/data", verbosity = 1)
     \end{pylabblock}
@@ -200,10 +160,10 @@
     \subsection{Plotting and Reporting}
     The following are the plots generated:
 
-    \pylab{gen_figure(scale=0.7)}
+    \pylab[NN]{gen_figure(pytex, scale=0.7)}
     
     \subsection{Implementing $L_2$ Regularization}
-    $L_2$ regularization has been implemented in the same code file (\verb|part_a/neural_network.py|).
+    $L_2$ regularization has been implemented in the same code file as the other parts of this question (\verb|part_a/neural_network.py|).
 
     \begin{verbatim}
         lamb=0
@@ -227,6 +187,13 @@
     \pagebreak
 
     \section{Ensemble}
+    Code for the ensemble is implemented in \verb|part_a/ensembly.py|. We bagged our base neural network, k-Nearest-Neighbor, and Item-Response models with their previously discussed optimal hyper parameters.
+
+    \begin{pylabblock}[ENSEMBLE]
+        import codebase.part_a.ensemble as ensemble
+        ensemble.evaluate(verbosity=1, data_path="./codebase/data")
+    \end{pylabblock}
+    \printpythontex[verb]
 
     \pagebreak
 
