@@ -206,7 +206,7 @@ def main(data_dir = "../data"):
     
     results["iteration_vals"] = np.arange(results["iterations"])
 
-    print("lr*: {} iterations*: {} acc*: {}".format(results["lr"], results["iterations"], results["val_acc"]))
+    print("lr*: {} iterations*: {} val_acc*: {}".format(results["lr"], results["iterations"], results["val_acc"]))
 
     test_acc = evaluate(test_data, theta, beta)
     print("test accuracy: {}".format(test_acc))

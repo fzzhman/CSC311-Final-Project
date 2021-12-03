@@ -216,7 +216,7 @@ def main():
     num_epoch_star = 0
     lamb_star = 0
     for k in ks:
-        print("Starting hyperparameter combination trials.")
+        print("Starting k, learning rate, number of epochs, and lambda optimizations.")
 
         for lr in lrs:
             for num_epoch in num_epochs:

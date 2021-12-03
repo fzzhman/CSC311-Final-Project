@@ -6,10 +6,9 @@ import itertools
 from torch import optim
 from scipy import sparse
 from torch.autograd import Variable
-import part_a.neural_network as nn
-import part_b.item_response_non_vec as ir
+import neural_network_copy as nn
+import item_response_non_vec as ir
 
-import part_a.knn as knn
 from utils import *
 import numpy as np
 
@@ -124,14 +123,14 @@ def train_irt(train_data, val_data, test_data, iter):
 
     theta, beta, val_log_likelihood, train_log_likelihood = \
         ir.irt(train_data, val_data, lr, iterations)
-    val_score, wrong, unused_wpu = evaluate_irt(data=val_data, theta=theta, beta=beta)
+    val_score, val_wrong, unused_wpu = evaluate_irt(data=val_data, theta=theta, beta=beta)
     test_score, test_wrong, unused_wpu = evaluate_irt(data=test_data, theta=theta, beta=beta)
     train_score, wrong, train_wpu = evaluate_irt(data=train_data, theta=theta, beta=beta)
 
     print("Validation Accuracy: ", val_score)
     print("Test Accuracy: ", test_score)
 
-    return train_score, wrong, train_wpu, theta, beta, test_wrong
+    return train_score, wrong, train_wpu, theta, beta, val_wrong
 
 
 def evaluate_irt(data, theta, beta):

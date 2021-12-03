@@ -116,7 +116,7 @@ def evaluate_ensemble(n=542):
     sub_zero_matrix[np.isnan(sub_zero_matrix)] = 0
     nn_model = nn.AutoEncoder(num_questions, 5)
     nn.train(nn_model, 0.05, 0.00025, torch.FloatTensor(sub_sparse_matrix.toarray()),
-             torch.FloatTensor(sub_zero_matrix), 5, val_data, verbosity=1)
+             torch.FloatTensor(sub_zero_matrix), 22, val_data, verbosity=1)
 
     # kNN impute
     knn_sub_sparse_mat = sample_sparse_matrix(n, sparse_matrix)
