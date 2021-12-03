@@ -72,9 +72,18 @@ class AutoEncoder(nn.Module):
         # Implement the function as described in the docstring.             #
         # Use sigmoid activations for f and g.                              #
         #####################################################################
-        encoder = torch.sigmoid(self.g(inputs))
-        decoder = torch.sigmoid(self.h(encoder))
-        out = decoder
+        encoder = nn.Sequential(
+            self.g,
+            nn.Sigmoid(),
+        )
+        decoder = nn.Sequential(
+            self.h,
+            nn.Sigmoid()
+        )
+
+        encoded = encoder(inputs)
+        decoded = decoder(encoded)
+        out = decoded
         #####################################################################
         #                       END OF YOUR CODE                            #
         #####################################################################
