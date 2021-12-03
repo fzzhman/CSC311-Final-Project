@@ -122,63 +122,8 @@ def update_sample_weight(sample_weight_matrix, wrong_samples, model_weight):
     return sample_weight_matrix
 
 
-def train_knn(current_training_set, current_train_data, valid_data, test_data):
-    # train knn
-    k_values = [49]
-    accuracies_user = []
-
-    for i in k_values:
-        accuracies_user.append(knn.knn_impute_by_user(current_training_set, valid_data, i))
-    k_user = accuracies_user.index(max(accuracies_user))
-    chosen_k = k_values[k_user]
-    test_acc = knn.knn_impute_by_user(current_training_set, test_data, chosen_k)
-    print("Highest k value for knn_impute_by_user: ", chosen_k)
-    print("Test Accuracy for this value of k: ", test_acc)
-
-    valid_acc, wrong, unused_wpu = evaluate_knn_by_user(current_training_set, valid_data, chosen_k)
-    train_acc, train_wrong, train_wpu = evaluate_knn_by_user(current_training_set, current_train_data, chosen_k)
-    return valid_acc, train_wrong, train_wpu
-
-
-def evaluate_knn_by_user(train_data, valid_data, k):
-    nbrs = KNNImputer(n_neighbors=k)
-    # We use NaN-Euclidean distance measure.
-    mat = nbrs.fit_transform(train_data)
-
-    total = 0
-    total_array = np.zeros((542, 1))
-    correct = 0
-    correct_array = np.zeros((542, 1))
-    wrong = np.zeros((542, 1))
-    for i, q in enumerate(valid_data["question_id"]):  # i=index q=q_id
-        u = valid_data["user_id"][i]
-        prediction = mat[u][q]
-        if prediction > 0.5:
-            prediction = 1
-        else:
-            prediction = 0
-
-        if valid_data["is_correct"][i] == prediction:
-            correct += 1
-            correct_array[u] += 1
-        else:
-            wrong[u] += 1
-        total += 1
-        total_array[u] += 1
-
-    for i in range(len(total_array)):
-        if total_array[i] == 0:
-            total_array[i] = 1
-
-    wpu = correct_array / total_array
-
-    acc = correct / float(total)
-    print("Validation Accuracy: {}".format(acc))
-    return acc, wrong, wpu
-
-
-def train_irt(train_data, val_data, test_data):
-    lr, iterations = 0.01, 20
+def train_irt(train_data, val_data, test_data, iter):
+    lr, iterations = 0.01, iter
 
     theta, beta, val_log_likelihood, train_log_likelihood = \
         ir.irt(train_data, val_data, lr, iterations)
@@ -323,28 +268,25 @@ def run_adaboost_ensemble():
         curret_train_data = dict(itertools.islice(curret_train_data.items(), sample_size))
         curret_train_data = sparse_martix_to_csv_data(current_zero_train_set, curret_train_data)
 
-
         # train
         if model_index == 0:
-            train_data_array.append(current_zero_train_set)
-            train_acc, train_wrong, train_wpu = train_knn(current_zero_train_set, curret_train_data, valid_data,
-                                                          test_data)
-            nbrs = KNNImputer(n_neighbors=26)
-            # We use NaN-Euclidean distance measure.
-            models.append(nbrs)
+            train_acc, train_wrong, train_wpu, theta, beta, test_wrong = \
+                train_irt(curret_train_data, valid_data, test_data, iter=20)
+            irt_wrong = test_wrong  # used to compare why IRT solely is better than adaboost ensemble
+            models.append((theta, beta))
+            train_data_array.append(current_train_set)
         elif model_index == 1:
             # train IRT
             train_acc, train_wrong, train_wpu, theta, beta, test_wrong = \
-                train_irt(curret_train_data, valid_data, test_data)
-            irt_wrong = test_wrong
+                train_irt(curret_train_data, valid_data, test_data, iter=20)
+            irt_wrong = test_wrong   # used to compare why IRT solely is better than adaboost ensemble
             models.append((theta, beta))
             train_data_array.append(current_train_set)
         elif model_index == 2:
-
             # train neural net
             print(np.shape(current_zero_train_set))
             model, train_acc, train_wrong, train_wpu = train_neural_net(current_train_set,
-                                                                        current_train_set,
+                                                                        current_zero_train_set,
                                                                         curret_train_data,
                                                                         valid_data,
                                                                         test_data)
@@ -359,7 +301,7 @@ def run_adaboost_ensemble():
         train_wpu = train_wpu.transpose()
         np.copyto(model_weight_per_user[model_index], train_wpu)
         if model_index == 2:
-            print("chec")
+            print("training done")
             model_weight_per_user = model_weight_per_user.transpose()
     valid_acc = evaluate_adaboost_ensemble(models, model_weight_per_user, train_data_array, valid_data, irt_wrong)
     print("valid_acc="+str(valid_acc))
@@ -389,15 +331,19 @@ def evaluate_adaboost_ensemble(models, model_weight_per_user, train_data, test_d
     correct = 0
     total = 0
     wrong = 0
+    theta = [0,0]
+    beta = [0,0]
 
-    nbrs = models[0]
-    knn_train_data = train_data[0]
-    mat = nbrs.fit_transform(knn_train_data)
-    theta = models[1][0]
-    beta = models[1][1]
+    theta[0] = models[0][0]
+    beta[0]= models[0][1]
+
+    theta[1] = models[1][0]
+    beta[1] = models[1][1]
+
     nn_model = models[2]
     nn_train_data = train_data[2]
     nn_train_data = torch.FloatTensor(nn_train_data)
+
     prediction = 0
 
     for i, u in enumerate(test_data["user_id"]):  # i=index u=u_id q=q_id
@@ -405,20 +351,14 @@ def evaluate_adaboost_ensemble(models, model_weight_per_user, train_data, test_d
         most_suited_model = pick_suited_model(u, model_weight_per_user)
         q = test_data["question_id"][i]
         if most_suited_model == 0:
-            # We use NaN-Euclidean distance measure.
-            prediction = mat[u][q]
-            if prediction > 0.5:
-                prediction = 1
-            else:
+            x = (theta[0][u] - beta[0][q]).sum()
+            p_a = sigmoid(x)
+            if p_a < 0.5:
                 prediction = 0
-            # x = (theta[u] - beta[q]).sum()
-            # p_a = sigmoid(x)
-            # if p_a < 0.5:
-            #     prediction = 0
-            # elif p_a >= 0.5:
-            #     prediction = 1
+            elif p_a >= 0.5:
+                prediction = 1
         if most_suited_model == 1:
-            x = (theta[u] - beta[q]).sum()
+            x = (theta[1][u] - beta[1][q]).sum()
             p_a = sigmoid(x)
             if p_a < 0.5:
                 prediction = 0
