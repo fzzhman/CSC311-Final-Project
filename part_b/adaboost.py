@@ -319,15 +319,15 @@ def run_adaboost_ensemble():
         current_zero_train_set[np.isnan(current_train_set)] = 0
 
         train_acc = 0
-        # curret_train_data = train_data.copy()
-        # curret_train_data = dict(itertools.islice(curret_train_data.items(), sample_size))
-        # curret_train_data = sparse_martix_to_csv_data(current_zero_train_set, curret_train_data)
+        curret_train_data = train_data.copy()
+        curret_train_data = dict(itertools.islice(curret_train_data.items(), sample_size))
+        curret_train_data = sparse_martix_to_csv_data(current_zero_train_set, curret_train_data)
 
 
         # train
         if model_index == 0:
             train_data_array.append(current_zero_train_set)
-            train_acc, train_wrong, train_wpu = train_knn(current_zero_train_set, train_data, valid_data,
+            train_acc, train_wrong, train_wpu = train_knn(current_zero_train_set, curret_train_data, valid_data,
                                                           test_data)
             nbrs = KNNImputer(n_neighbors=26)
             # We use NaN-Euclidean distance measure.
@@ -335,7 +335,7 @@ def run_adaboost_ensemble():
         elif model_index == 1:
             # train IRT
             train_acc, train_wrong, train_wpu, theta, beta, test_wrong = \
-                train_irt(train_data, valid_data, test_data)
+                train_irt(curret_train_data, valid_data, test_data)
             irt_wrong = test_wrong
             models.append((theta, beta))
             train_data_array.append(current_train_set)
@@ -345,7 +345,7 @@ def run_adaboost_ensemble():
             print(np.shape(current_zero_train_set))
             model, train_acc, train_wrong, train_wpu = train_neural_net(current_train_set,
                                                                         current_train_set,
-                                                                        train_data,
+                                                                        curret_train_data,
                                                                         valid_data,
                                                                         test_data)
             models.append(model)
