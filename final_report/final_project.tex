@@ -4,45 +4,52 @@
 \usepackage{amssymb}
 \usepackage{bm}
 \usepackage{bbm}
+\usepackage{graphicx}
 
+\setpythontexfv{breaklines}
 \renewcommand\thesubsection{\alph{subsection}}
 
 \title{CSC311 - Final Assignment}
 \author{Zelong Liu, Fizzah Mansoor, Harrison Deng}
 
-\begin{pycode}
-    ### Setting up PythonTex environment. ###
-
-    # Add code dependencies to working directory #
-    # TODO: Finish this part
-
-    # Setting up automatic graphic inclusion #
-    fig_info = {
-        "dir": "figures/generated/",
-        "basename": '_'.join([pytex.session, pytex.family, pytex.restart]),
-        "num": 0
-    }
-    pytex.figures = fig_info
-
-    def after_figures():
-        if pytex.family == "pylab":
-                figures = pytex.figures
-                for num in get_fignums():
-                    path = figures["basename"] + "_fig" + str(figures["num"]) + ".pdf"
-                    figures["num"] = figures["num"] + 1
-                    figure(figures["num"])
-                    savefig(path)
-                    pytex.add_created(path)
-                    print(r"\includegraphics{" + path + r"}")
-
-    # Define code to run after running python code
-    def after():
-        after_figures()
-    pytex.after = after
-
-\end{pycode}
-
 \begin{document}
+    \begin{pylabcode}
+        import glob
+        import shutil
+        import os
+        ### Setting up PythonTex environment. ###
+
+        # Copy necessary code #
+        for p in glob.glob("../code/**/*.py"):
+            pytex.add_dependencies(p)
+        
+        if os.path.exists("./codebase"):
+            shutil.rmtree("./codebase")
+        shutil.copytree("../code/", "./codebase")
+        for p in glob.glob("./codebase/**/*"):
+            pytex.add_created(p)
+
+        # Setting up automatic graphic inclusion #
+        fig_info = {
+            "dir": "./figures/generated/",
+            "basename": '_'.join([pytex.session, pytex.family, pytex.restart]),
+            "num": 0
+        }
+        pytex.figures = fig_info
+
+        def gen_figure():
+            figures = pytex.figures
+            for num in get_fignums():
+                name = figures["basename"] + "_fig" + str(figures["num"]) + ".pdf"
+                path = figures["dir"] + name
+                figures["num"] = figures["num"] + 1
+                figure(figures["num"])
+                savefig(path)
+                pytex.add_created(path)
+            return "\\includegraphics{" + path + "}"
+    \end{pylabcode}
+
+
     \maketitle
 
     \pagebreak
@@ -90,30 +97,51 @@
     \end{align*}
     
     \subsection{Implementation of IRT}
-    The implementation of IRT is in \verb|part_a/item_response.py|. We chose the hyperparameters $\alpha$ and iterations via the code below:
+    The implementation of IRT is in \verb|part_a/item_response.py|. We chose the hyperparameters $\alpha$ and iterations number by performing multiple combinations of them and seeing which one had the highest validation score (automated, see mentioned code file for this automation). We then manually adjusted the set of tested values and repeated. Doing this a few times resulted in:
 
-    \begin{pyblock}[IRT]
-        #TODO: Import 
-        iteration_sets = [45, 180, 185, 190]
-        lrs = [0.001, 0.005]
+    \begin{pylabblock}
+        import codebase.part_a.item_response as irt
+        print()
+        irt_results = irt.main("./codebase/data")
+    \end{pylabblock}
+    \printpythontex[verb]
 
-        lr_star = None
-        iterations_star = None
-        acc_star = 0
-        for iterations in iteration_sets:
-            for lr in lrs:
-                print("Training with lr of {} and {} number of iterations.".format(lr, iterations))
-                theta, beta, step_accs = irt(sparse_matrix, val_data, lr, iterations, verbosity=2)
-                acc = evaluate(val_data, theta, beta)
-                print("Final accuracy: {}".format(acc))
-                if acc > acc_star:
-                    acc_star = acc
-                    lr_star = lr
-                    iterations_star = iterations
-        print("lr*: {} iterations*: {} acc*: {}".format(lr_star, iterations_star, acc_star))
-    \end{pyblock}
+    \medskip
+
+    \noindent
+    The following is a plot of the training curve (and the code used to generate it):
+    \begin{pylabblock}
+        plot(irt_results["train_nllks"], label="train")
+        plot(irt_results["val_nllks"], label="valid")
+        ylabel("Negative Log Likelihood")
+        xlabel("Iteration")
+        title("Neg Log Likelihood for Train and Validation Data")
+        legend()
+    \end{pylabblock}
+    \pylab{gen_figure()}
 
     \subsection{Reporting Validation and Test Accuracies}
+
+    Validation and test accuracies have been calculated in the previous call to the main function. Again, implementation is in \verb|part_a/item_response.py|.
+
+    \medskip
+
+    \noindent
+    Our validation accuracy:
+    \begin{pylabblock}
+        print(irt_results["val_acc"])
+    \end{pylabblock}
+    \printpythontex[verb]
+
+    \medskip
+
+    \noindent
+    Test accuracy:
+    \begin{pylabblock}
+        print(irt_results["test_acc"])
+    \end{pylabblock}
+    \printpythontex[verb]
+
     \subsection{Plots of Questions With Respect to $\bm{\theta}$ and $\bm{\beta}$}
 
     \pagebreak

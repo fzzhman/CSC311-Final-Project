@@ -7,7 +7,6 @@ import item_response as irt
 from torch.autograd import Variable
 import utils
 import neural_network as nn
-import scipy.sparse
 
 
 def predict_irt(u_id, q_id, theta, beta, binary=True):

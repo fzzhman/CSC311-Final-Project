@@ -1,7 +1,11 @@
 import sys
+
+from matplotlib.pyplot import axis
 from utils import *
 
 import numpy as np
+import matplotlib.pyplot as plt
+from scipy import sparse
 
 
 def sigmoid(x):
@@ -26,7 +30,6 @@ def neg_log_likelihood(sparse_matrix, theta, beta):
     # Implement the function as described in the docstring.             #
     #####################################################################
     sparse_matrix = sparse_matrix.toarray()
-
     num_users, num_questions = np.shape(sparse_matrix)
     theta_mat = np.tile(np.expand_dims(theta, 1), (1, num_questions))
     beta_mat = np.tile(np.expand_dims(beta, 0), (num_users, 1))
@@ -85,7 +88,7 @@ def update_theta_beta(sparse_matrix, lr, theta, beta):
     #####################################################################
     return theta, beta
 
-def irt(sparse_matrix, val_data, lr, iterations, step_func = update_theta_beta, verbosity = 1):
+def irt(train_sparse_mat, val_data, lr, iterations, verbosity = 1):
     """ Train IRT model.
 
     You may optionally replace the function arguments to receive a matrix.
@@ -99,28 +102,40 @@ def irt(sparse_matrix, val_data, lr, iterations, step_func = update_theta_beta, 
     :return: (theta, beta, val_acc_lst)
     """
     # TODO: Initialize theta and beta.
-    num_users, num_questions = np.shape(sparse_matrix)
+    num_users, num_questions = np.shape(train_sparse_mat)
     rng = np.random.default_rng()
     theta = np.asarray(rng.uniform(0.001, 1, num_users)) # Size is of number of users based on ID.
     beta = np.asarray(rng.uniform(0.001, 1, num_questions)) # Size is of number of questions based on question ID.
 
-    val_acc_lst = []
+    # Convert validation data to matrix.
+    val_sparse_mat = np.empty(np.shape(train_sparse_mat))
+    val_sparse_mat[:] = np.nan
+    for i, u_id in enumerate(val_data["user_id"]):
+        q_id = val_data["question_id"][i]
+        val_sparse_mat[u_id, q_id] = val_data["is_correct"][i]
+    val_sparse_mat = sparse.csr_matrix(val_sparse_mat)
+
+
+    train_nllks = []
+    val_nllks = []
 
     for i in range(iterations):
-        neg_lld = neg_log_likelihood(sparse_matrix, theta=theta, beta=beta)
+        train_neg_lld = neg_log_likelihood(train_sparse_mat, theta=theta, beta=beta)
         score = evaluate(data=val_data, theta=theta, beta=beta)
-        val_acc_lst.append(score)
+        train_nllks.append(train_neg_lld)
+
+        val_neg_lld = neg_log_likelihood(val_sparse_mat, theta=theta, beta=beta)
+        val_nllks.append(val_neg_lld)
         if verbosity == 2:
-            print("It.: {} NLLK: {} \t Score: {}".format(i, neg_lld, score))
+            print("It.: {} Train NLLK: {} Val. Score: {}".format(i, train_neg_lld, score))
         elif verbosity == 1:
-            sys.stdout.write("\rIt.: {} \t NLLK: {} \t Score: {}".format(i, neg_lld, score))
-        theta, beta = step_func(sparse_matrix, lr, theta, beta)
+            sys.stdout.write("\rIt.: {} Train NLLK: {} Val. Score: {}".format(i, train_neg_lld, score))
+        theta, beta = update_theta_beta(train_sparse_mat, lr, theta, beta)
     if verbosity == 1:
         print()
-    print("Final results: NLLK: {} \t Score: {}".format(neg_lld, score))
 
     # TODO: You may change the return values to achieve what you want.
-    return theta, beta, val_acc_lst
+    return theta, beta, train_nllks, val_nllks
 
 
 def evaluate(data, theta, beta):
@@ -141,39 +156,64 @@ def evaluate(data, theta, beta):
     return np.sum((data["is_correct"] == np.array(pred))) \
            / len(data["is_correct"])
 
-def main():
-    train_data = load_train_csv("../data")
+def main(data_dir = "../data"):
+    # train_data = load_train_csv(data_dir)
     # You may optionally use the sparse matrix.
-    sparse_matrix = load_train_sparse("../data")
-    val_data = load_valid_csv("../data")
-    test_data = load_public_test_csv("../data")
+    train_sparse_matrix = load_train_sparse(data_dir)
+    val_data = load_valid_csv(data_dir)
+    test_data = load_public_test_csv(data_dir)
+
+
 
     #####################################################################
     # TODO:                                                             #
     # Tune learning rate and number of iterations. With the implemented #
     # code, report the validation and test accuracy.                    #
     #####################################################################
-    iteration_sets = [45, 180, 185, 190]
-    lrs = [0.001, 0.005]
+    # iteration_sets = [45, 180, 185, 190]
+    # lrs = [0.001, 0.005]
 
-    lr_star = None
-    iterations_star = None
-    acc_star = 0
+    iteration_sets = [45]
+    lrs = [0.005]
+
+
+    results = {
+        "iteration_vals": [],
+        "train_nllks": [],
+        "val_nllks": [],
+        "lr": 0,
+        "iterations": 0,
+        "val_acc": 0,
+        "test_acc": 0,
+        "theta": None,
+        "beta": None
+    }
+
     for iterations in iteration_sets:
         for lr in lrs:
             print("Training with lr of {} and {} number of iterations.".format(lr, iterations))
-            theta, beta, step_accs = irt(sparse_matrix, val_data, lr, iterations, verbosity=2)
+            theta, beta, train_nllks, val_nllks = irt(train_sparse_matrix, val_data, lr, iterations, verbosity=0)
             acc = evaluate(val_data, theta, beta)
             print("Final accuracy: {}".format(acc))
-            if acc > acc_star:
-                acc_star = acc
-                lr_star = lr
-                iterations_star = iterations
-    print("lr*: {} iterations*: {} acc*: {}".format(lr_star, iterations_star, acc_star))
+            if acc > results["val_acc"]:
+                results["val_acc"] = acc
+                results["lr"] = lr
+                results["iterations"] = iterations
+                results["train_nllks"] = train_nllks
+                results["val_nllks"] = val_nllks
+                results["theta"] = theta
+                results["beta"] = beta
+    
+    results["iteration_vals"] = np.arange(results["iterations"])
+
+    print("lr*: {} iterations*: {} acc*: {}".format(results["lr"], results["iterations"], results["val_acc"]))
     #####################################################################
     #                       END OF YOUR CODE                            #
     #####################################################################
 
+    test_acc = evaluate(test_data, theta, beta)
+    print("test accuracy: {}".format(test_acc))
+    results["test_acc"] = test_acc
     #####################################################################
     # TODO:                                                             #
     # Implement part (d)                                                #
@@ -182,6 +222,7 @@ def main():
     #####################################################################
     #                       END OF YOUR CODE                            #
     #####################################################################
+    return results
 
 
 if __name__ == "__main__":

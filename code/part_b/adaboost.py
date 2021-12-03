@@ -7,7 +7,7 @@ from torch import optim
 from scipy import sparse
 from torch.autograd import Variable
 import part_a.neural_network as nn
-import part_b.item_response as ir
+import part_b.item_response_non_vec as ir
 
 import part_a.knn as knn
 from utils import *

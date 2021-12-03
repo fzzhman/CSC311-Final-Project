@@ -556,3 +556,6 @@ __pypackages__/
 !.vscode/*.code-snippets
 
 # End of https://www.toptal.com/developers/gitignore/api/visualstudiocode,intellij,pycharm+all,pythonvanilla,latex
+
+final_report/figures/generated
+final_report/codebase/**
