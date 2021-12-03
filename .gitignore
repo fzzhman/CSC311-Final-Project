@@ -557,5 +557,6 @@ __pypackages__/
 
 # End of https://www.toptal.com/developers/gitignore/api/visualstudiocode,intellij,pycharm+all,pythonvanilla,latex
 
+# Final report stuff
 final_report/figures/generated
 final_report/codebase/**

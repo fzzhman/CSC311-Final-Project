@@ -207,13 +207,22 @@ def main(data_dir = "../data"):
     results["iteration_vals"] = np.arange(results["iterations"])
 
     print("lr*: {} iterations*: {} acc*: {}".format(results["lr"], results["iterations"], results["val_acc"]))
-    #####################################################################
-    #                       END OF YOUR CODE                            #
-    #####################################################################
 
     test_acc = evaluate(test_data, theta, beta)
     print("test accuracy: {}".format(test_acc))
     results["test_acc"] = test_acc
+    
+    plt.plot(results["train_nllks"], label="train")
+    plt.plot(results["val_nllks"], label="valid")
+    plt.ylabel("Negative Log Likelihood")
+    plt.xlabel("Iteration")
+    plt.title("Neg Log Likelihood for Train and Validation Data")
+    plt.legend()
+    plt.show()
+    
+    #####################################################################
+    #                       END OF YOUR CODE                            #
+    #####################################################################
     #####################################################################
     # TODO:                                                             #
     # Implement part (d)                                                #
