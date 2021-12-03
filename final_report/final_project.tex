@@ -181,13 +181,16 @@
     \section{Neural Networks}
     \subsection{Differences Between ALS and Neural Networks}
     
-    ALS optimizes 2 variable U and Z, neural net don't optimize Z directly but achieve Z's optimization with f(Wx) (with gradient descent),
+    ALS optimizes 2 variable U and Z, neural net optimize one variable W(with gradient descent),
 
     ALS is an optimization algorithm that is incorporated as a part of a machine learning algorithm, while the neural network is a machine learning algorithm that that uses optimization algorithms to achieve learning.
 
     In neural net, W is used to manipulate x, while in ALS, W,X is being optimized as one variable U .
 
-    ALS can be calculated parallel,
+    ALS is essentially measuring the difference between target and product of two value(s), the obtain the two value, train matrix need to be pre-processed with SVD, neural network don't need to do this.
+
+    neural net don't optimize latent Z directly but achieve Z's optimization with W_1 using g(W_1 x), where as ALS directly optimize Z.
+
 
     \subsection{Implementing AutoEncoder}
     This part can be found in \verb|part_a/neural_network.py|.
