@@ -100,7 +100,7 @@ def train(model, lr, lamb, train_data, zero_train_data, num_epoch, valid_data=No
     model.train()
 
     # Define optimizers and loss function.
-    optimizer = optim.SGD(model.parameters(), lr=lr, weight_decay=lamb)
+    optimizer = optim.SGD(model.parameters(), lr=lr)
     num_student = train_data.shape[0]
 
     for epoch in range(0, num_epoch):
@@ -118,7 +118,7 @@ def train(model, lr, lamb, train_data, zero_train_data, num_epoch, valid_data=No
             target[0][nan_mask] = output[0][nan_mask]
 
             loss = torch.sum((output - target) ** 2.)
-            loss += (lamb/2)*model.get_weight_norm()
+            loss += (lamb/2)*model.get_weight_norm()  # L2 Regularization
             loss.backward()
 
             train_loss += loss.item()

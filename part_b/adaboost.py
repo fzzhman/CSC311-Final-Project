@@ -56,9 +56,6 @@ def sample_sparse_matrix(n, sparse_matrix, user_weights, guarantee_users=True):
     composite[:] = np.nan
     #sparse_matrix = sparse_matrix.toarray()
 
-    if len(user_weights) == 0:
-        user_weights = np.full(num_users, 1 / num_users)
-
     if guarantee_users:
         composite = sparse_matrix
 
@@ -169,15 +166,14 @@ def evaluate_irt(data, theta, beta):
     return correct / float(total), wrong_a, weight_per_user
 
 
-def train_neural_net(train_data, zero_train_data, current_train_data, valid_data, test_data):
+def train_neural_net(train_data, zero_train_data, current_train_data, valid_data, test_data, epoch, k):
     train_data = torch.FloatTensor(train_data)
     zero_train_data = torch.FloatTensor(zero_train_data)
 
-    epoch = 5
-    model = nn.AutoEncoder(num_question=len(train_data[0]), k=10)
+    model = nn.AutoEncoder(num_question=len(train_data[0]), k=k)
     print("training neural net")
-    print("k* = " + str(10) + "; learning rate = " + str(0.05)
-          + "; num_epoch = " + str(epoch) + "; lamb=" + str(0.00025) + "; p=" + str(0))
+    print("k* = " + str(k) + "; learning rate = " + str(0.05)
+          + "; num_epoch = " + str(epoch) + "; lamb=" + str(0.00025))
     nn.train(model,
              lr=0.05,
              lamb=0.00025,
@@ -270,11 +266,16 @@ def run_adaboost_ensemble():
 
         # train
         if model_index == 0:
-            train_acc, train_wrong, train_wpu, theta, beta, test_wrong = \
-                train_irt(curret_train_data, valid_data, test_data, iter=20)
-            irt_wrong = test_wrong  # used to compare why IRT solely is better than adaboost ensemble
-            models.append((theta, beta))
-            train_data_array.append(current_train_set)
+            print(np.shape(current_zero_train_set))
+            model, train_acc, train_wrong, train_wpu = train_neural_net(current_train_set,
+                                                                        current_zero_train_set,
+                                                                        curret_train_data,
+                                                                        valid_data,
+                                                                        test_data,
+                                                                        epoch=5,
+                                                                        k=5)
+            models.append(model)
+            train_data_array.append(current_zero_train_set)
         elif model_index == 1:
             # train IRT
             train_acc, train_wrong, train_wpu, theta, beta, test_wrong = \
@@ -289,7 +290,9 @@ def run_adaboost_ensemble():
                                                                         current_zero_train_set,
                                                                         curret_train_data,
                                                                         valid_data,
-                                                                        test_data)
+                                                                        test_data,
+                                                                        epoch=5,
+                                                                        k=5)
             models.append(model)
             train_data_array.append(current_zero_train_set)
 
@@ -334,8 +337,10 @@ def evaluate_adaboost_ensemble(models, model_weight_per_user, train_data, test_d
     theta = [0,0]
     beta = [0,0]
 
-    theta[0] = models[0][0]
-    beta[0]= models[0][1]
+    nn0_model = models[0]
+    nn0_model.eval()
+    nn0_train_data = train_data[0]
+    nn0_train_data = torch.FloatTensor(nn0_train_data)
 
     theta[1] = models[1][0]
     beta[1] = models[1][1]
@@ -351,12 +356,9 @@ def evaluate_adaboost_ensemble(models, model_weight_per_user, train_data, test_d
         most_suited_model = pick_suited_model(u, model_weight_per_user)
         q = test_data["question_id"][i]
         if most_suited_model == 0:
-            x = (theta[0][u] - beta[0][q]).sum()
-            p_a = sigmoid(x)
-            if p_a < 0.5:
-                prediction = 0
-            elif p_a >= 0.5:
-                prediction = 1
+            inputs = Variable(nn0_train_data[u]).unsqueeze(0)  # get that user's train data
+            output = nn0_model(inputs)  # generate that user's prediction
+            prediction = output[0][test_data["question_id"][i]].item() >= 0.5
         if most_suited_model == 1:
             x = (theta[1][u] - beta[1][q]).sum()
             p_a = sigmoid(x)
