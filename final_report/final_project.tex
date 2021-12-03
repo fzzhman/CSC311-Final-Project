@@ -6,7 +6,7 @@
 \usepackage{bbm}
 \usepackage{graphicx}
 
-\setpythontexfv{breaklines}
+\fvset{breaklines}
 \renewcommand\thesubsection{\alph{subsection}}
 
 \title{CSC311 - Final Assignment}
@@ -35,19 +35,27 @@
             "basename": '_'.join([pytex.session, pytex.family, pytex.restart]),
             "num": 0
         }
-        pytex.figures = fig_info
+        pytex.fig_info = fig_info
 
-        def gen_figure():
-            figures = pytex.figures
-            for num in get_fignums():
-                name = figures["basename"] + "_fig" + str(figures["num"]) + ".pdf"
-                path = figures["dir"] + name
-                figures["num"] = figures["num"] + 1
+        def gen_figure(scale = 0.8, fig_num = None):
+
+            nums = []
+            if fig_num != None:
+                nums.append(fig_num)
+            else:
+                nums = get_fignums()
+            fig_info = pytex.fig_info
+            results = ""
+            for num in nums:
+                name = fig_info["basename"] + "_fig" + str(fig_info["num"]) + ".pdf"
+                path = fig_info["dir"] + name
+                fig_info["num"] = fig_info["num"] + 1
                 figure(num)
                 savefig(path)
                 close(num)
                 pytex.add_created(path)
-            return "\\includegraphics{" + path + "}"
+                results = results + "\\includegraphics[scale={}]".format(scale) + "{" + path + "}\n\n"
+            return results
     \end{pylabcode}
 
 
@@ -138,19 +146,9 @@
     \end{pylabblock}
     \printpythontex[verb]
 
-    \medskip
+    \pylab{gen_figure(fig_num=1)}
 
-    \noindent
-    The following is a plot of the training curve (and the code used to generate it):
-    \begin{pylabblock}
-        plot(irt_results["train_nllks"], label="train")
-        plot(irt_results["val_nllks"], label="valid")
-        ylabel("Negative Log Likelihood")
-        xlabel("Iteration")
-        title("Neg Log Likelihood for Train and Validation Data")
-        legend()
-    \end{pylabblock}
-    \pylab{gen_figure()}
+    \medskip
 
     \subsection{Reporting Validation and Test Accuracies}
 
@@ -176,14 +174,55 @@
 
     \subsection{Plots of Questions With Respect to $\bm{\theta}$ and $\bm{\beta}$}
 
+    \pylab{gen_figure(fig_num=2)}
+
     \pagebreak
 
     \section{Neural Networks}
     \subsection{Differences Between ALS and Neural Networks}
+    
+    als optimizes 2 variable U and Z, neural net optimizes 1 variable W (with gradient descent),
+
+    ALS is an optimization algorithm that is incorporated as a part of a machine learning algorithm, while the neural network is a machine learning algorithm that that uses optimization algorithms to achieve learning.
+
+    in als, w is used to manipulate x while in als, x is completely gone.
+
     \subsection{Implementing AutoEncoder}
+    This part can be found in \verb|part_a/neural_network.py|.
+
     \subsection{Tuning and Training NN}
-    \subsection{Ploting and Reporting}
+    \begin{pylabblock}
+        import codebase.part_a.neural_network as nn
+        nn.main(data_path="./codebase/data", verbosity = 1)
+    \end{pylabblock}
+    \printpythontex[verb]
+
+    \subsection{Plotting and Reporting}
+    The following are the plots generated:
+
+    \pylab{gen_figure(scale=0.7)}
+    
     \subsection{Implementing $L_2$ Regularization}
+    $L_2$ regularization has been implemented in the same code file (\verb|part_a/neural_network.py|).
+
+    \begin{verbatim}
+        lamb=0
+        Final Validation Accuracy*    0.6858594411515665
+        Final Test Accuracy*    0.6836014676827548
+        lamb=0.001
+        Final Validation Accuracy*    0.6869884278859724
+        Final Test Accuracy*    0.6785210273779283
+    \end{verbatim}
+
+    \begin{verbatim}
+        (optional extra finding):
+        but with lamb=0.00025
+        Final accuracy    0.6848715777589613
+        Final Test Accuracy*    0.6861416878351679
+    \end{verbatim}
+
+    There are improvements on the validation accuracy, but not on the test accuracy.
+
 
     \pagebreak
 

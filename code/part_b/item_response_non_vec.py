@@ -184,6 +184,7 @@ def main():
     plt.title("Selected Questions Probability as a function of Theta")
     plt.legend()
     plt.show()
+    plt.savefig("abc.pdf")
     #####################################################################
     #####################################################################
     #                       END OF YOUR CODE                            #

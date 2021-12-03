@@ -83,7 +83,9 @@ def main(data_path = "../data", verbosity = 1):
     # chosen k*.                                                        #
     #####################################################################
 
-    k_vals = [1, 6, 11, 16, 21, 26]
+    # k_vals = [1, 6, 11, 16, 21, 26]
+    k_vals = [1, 6] # TODO: Shortened, undo for full submission
+
     val_user_acc = []
     for k in k_vals:
         val_user_acc.append(knn_impute_by_user(sparse_matrix, val_data, k))

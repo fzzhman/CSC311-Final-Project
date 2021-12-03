@@ -212,6 +212,7 @@ def main(data_dir = "../data"):
     print("test accuracy: {}".format(test_acc))
     results["test_acc"] = test_acc
     
+    plt.figure()
     plt.plot(results["train_nllks"], label="train")
     plt.plot(results["val_nllks"], label="valid")
     plt.ylabel("Negative Log Likelihood")
@@ -227,7 +228,18 @@ def main(data_dir = "../data"):
     # TODO:                                                             #
     # Implement part (d)                                                #
     #####################################################################
-    pass
+    questions = [1, 2, 3]
+    plt.figure()
+    sorted_theta = results["theta"]
+    sorted_theta.sort()
+    for q in questions:
+        q_str = "q. {}".format(q)
+        beta_q = results["beta"][q]
+        plt.plot(sigmoid(sorted_theta - beta_q), label=q_str)
+    plt.ylabel("Probabilty of the Correct Response")
+    plt.xlabel("Theta")
+    plt.legend()
+    plt.show()
     #####################################################################
     #                       END OF YOUR CODE                            #
     #####################################################################
