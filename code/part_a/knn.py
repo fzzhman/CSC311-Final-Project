@@ -66,10 +66,10 @@ def accuracy_plot(k_vals, accuracy, title):
     plt.show()
 
 
-def main():
-    sparse_matrix = load_train_sparse("../data").toarray()
-    val_data = load_valid_csv("../data")
-    test_data = load_public_test_csv("../data")
+def main(data_path = "../data", verbosity = 1):
+    sparse_matrix = load_train_sparse(data_path).toarray()
+    val_data = load_valid_csv(data_path)
+    test_data = load_public_test_csv(data_path)
 
     print("Sparse matrix:")
     print(sparse_matrix)
@@ -115,7 +115,7 @@ def main():
     #####################################################################
     #                       END OF YOUR CODE                            #
     #####################################################################
-
+    return k_vals, val_user_acc, val_item_acc
 
 if __name__ == "__main__":
     main()

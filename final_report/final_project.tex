@@ -43,8 +43,9 @@
                 name = figures["basename"] + "_fig" + str(figures["num"]) + ".pdf"
                 path = figures["dir"] + name
                 figures["num"] = figures["num"] + 1
-                figure(figures["num"])
+                figure(num)
                 savefig(path)
+                close(num)
                 pytex.add_created(path)
             return "\\includegraphics{" + path + "}"
     \end{pylabcode}
@@ -62,10 +63,41 @@
     
     \section{K-Nearest Neighbor}
     \subsection{Complete Main kNN, Plot and Report Accuracy}
+    The implementation of all code is in the \verb|part_a/knn.py| file. Following are plots of accuracy on validation data as a function of $k \in \{1,6,11,16,21,26\}$:
+
+    \begin{pylabblock}
+        import codebase.part_a.knn as knn
+        k_vals, val_user_acc, val_item_acc = knn.main("./codebase/data")
+    \end{pylabblock}
+
+    \begin{pylabblock}
+        knn.accuracy_plot(k_vals, val_user_acc, "User-Based Collaborative Filtering")
+    \end{pylabblock}
+    \pylab{gen_figure()}
+
+    \begin{pylabblock}
+        knn.accuracy_plot(k_vals, val_item_acc, "Item-Based Collaborative Filtering")
+    \end{pylabblock}
+    \pylab{gen_figure()}
+
+    
+
+
     \subsection{Selecting k*}
+    
     \subsection{Implementing Impute by Item}
+    Underlying assumption: if answers by certain users to Question A match those of Question B, then A’s answer correctness corresponding to a specific user matches that of question Y. 
+
     \subsection{Comparing user and item based Collaborative Filtering}
+    User-Based collaborative filtering performs better on test data. $68.416\%$ accuracy on user-based filtering and $68.162\%$ accuracy on item-based filtering.
+
     \subsection{Potential Limitations of kNN in this Context}
+    We can safely assume that there is a high correlation between both question difficulty and student ability on whether or not the question was answered correctly. But, feature importance is not possible for the KNN algorithm (there is no way to define the features which are responsible for the classification), so it will not be able to make accurate inferences based on these two parameters. In the algorithm used in this question, either one of the two parameters (user ability or question difficulty) is focused on, so it has lower validation and test accuracy scores than other algorithms in Part A of this project. 
+
+    KNN runs slowly. Finding the optimal k-value from the given list of possible k values ({1, 6, 11, 21, 26}) takes several minutes for each function.
+
+    
+
 
     \pagebreak
 
