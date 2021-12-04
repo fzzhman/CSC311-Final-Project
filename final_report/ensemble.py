@@ -108,15 +108,14 @@ def evaluate_ensemble(verbosity = 1, data_path = "../data", n=300):
     num_users, num_questions = np.shape(sparse_matrix)
 
     # Train IRT
-    irt_model = irt.irt(sample_sparse_matrix(n, sparse_matrix), val_data, 0.001, 20)
+    irt_model = irt.irt(sample_sparse_matrix(n, sparse_matrix), val_data, 0.001, 180, verbosity=verbosity - 1)
 
     # Train NN
     sub_sparse_matrix = sample_sparse_matrix(n, sparse_matrix, guarantee_users=False)
     sub_zero_matrix = sub_sparse_matrix.toarray().copy()
     sub_zero_matrix[np.isnan(sub_zero_matrix)] = 0
-    nn_model = nn.AutoEncoder(num_questions, 4)
-    nn.train(nn_model, 0.05, 0.00025, torch.FloatTensor(sub_sparse_matrix.toarray()),
-             torch.FloatTensor(sub_zero_matrix), 10, val_data, verbosity=1)
+    nn_model = nn.AutoEncoder(num_questions, 10)
+    nn.train(nn_model, 0.05, 0.00025, torch.FloatTensor(sub_sparse_matrix.toarray()),torch.FloatTensor(sub_zero_matrix), 40, val_data, verbosity=verbosity - 1)
 
     # kNN impute
     knn_sub_sparse_mat = sample_sparse_matrix(n, sparse_matrix)
@@ -156,15 +155,12 @@ def evaluate_ensemble(verbosity = 1, data_path = "../data", n=300):
             val_correct_pred = val_correct_pred + 1
         val_total = val_total + 1
 
-        if verbosity > 0 and i > 0:
+        if verbosity > 1 and i > 0:
             sys.stdout.write(
-                "\r Ind: {} knn cor.: {} irt cor.: {} nn cor.: {} ensemble acc.: {}".format(i, ind_val_correct["knn"],
-                                                                                            ind_val_correct["nn"],
-                                                                                            ind_val_correct["irt"],
-                                                                                            val_correct_pred / float(
-                                                                                                val_total)))
+                "\r Ind: {} knn cor.: {} irt cor.: {} nn cor.: {} ensemble acc.: {}".format(i, ind_val_correct["knn"], ind_val_correct["nn"], ind_val_correct["irt"], val_correct_pred / float(val_total)))
 
-    print("\nFinal val. acc: {}".format(val_correct_pred / val_total))
+    if verbosity > 0:
+        print("\nFinal ensemble val. acc: {}".format(val_correct_pred / val_total))
 
 
     ind_test_correct = {
@@ -202,15 +198,13 @@ def evaluate_ensemble(verbosity = 1, data_path = "../data", n=300):
             test_correct_pred = test_correct_pred + 1
         test_total = test_total + 1
 
-        if verbosity > 0 and i > 0:
+        if verbosity > 1 and i > 0:
             sys.stdout.write(
-                "\r Ind: {} knn cor.: {} irt cor.: {} nn cor.: {} ensemble acc.: {}".format(i, ind_test_correct["knn"],
-                                                                                            ind_test_correct["nn"],
-                                                                                            ind_test_correct["irt"],
-                                                                                            test_correct_pred / float(
-                                                                                                test_total)))
+                "\r Ind: {} knn cor.: {} irt cor.: {} nn cor.: {} ensemble acc.: {}".format(i, ind_test_correct["knn"], ind_test_correct["nn"], ind_test_correct["irt"], test_correct_pred / float(test_total)))
 
-    print("\nFinal test acc: {}".format(test_correct_pred / test_total))
+
+    if verbosity > 0:
+        print("\nFinal ensemble test acc: {}".format(test_correct_pred / test_total))
 
 
 def main():

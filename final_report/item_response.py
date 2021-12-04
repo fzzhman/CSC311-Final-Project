@@ -164,6 +164,7 @@ def main(data_dir = "../data"):
     test_data = load_public_test_csv(data_dir)
 
 
+
     #####################################################################
     # TODO:                                                             #
     # Tune learning rate and number of iterations. With the implemented #
@@ -219,7 +220,9 @@ def main(data_dir = "../data"):
     plt.title("Neg Log Likelihood for Train and Validation Data")
     plt.legend()
     plt.show()
-    plt.savefig("figures/generated/irt_{}.pdf".format("Neg Log Likelihood for Train and Validation Data".replace(" ", "_")))
+    if os.path.exists("figures/generated/"):
+        plt.savefig("figures/generated/irt_{}.pdf".format("Neg Log Likelihood for Train and Validation Data".replace(" ", "_")))
+        plt.close()
 
     
     #####################################################################

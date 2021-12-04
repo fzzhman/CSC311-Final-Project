@@ -176,14 +176,17 @@
     This part can be found in \verb|part_a/neural_network.py|.
 
     \subsection{Tuning and Training NN}
-    \begin{pylabblock}[NN]
-        import neural_network as nn
-        nn.main(data_path="./data", verbosity = 1)
-    \end{pylabblock}
-    \printpythontex[verb]
+    Implementation is in the previously mentioned code file.
+
+    From trying various combinations of $k$ where $k\in \{10, 50, 100, 200, 500\}$ and learning rates ($\alpha$), we found the highest accuracy to be $0.6858594411515665$ or $68.5\%$ at $k*=10$ $\alpha*=0.05$ and $epoch=22$.
+
 
     \subsection{Plotting and Reporting}
-    The following are the plots generated:
+    Our final test accuracy was $0.69348010160880611$ or around $69.3\%$. From the learning for that result, the following are the plots generated:
+
+    \includegraphics[scale=0.7]{figures/generated/nn_Loss_Change_As_Epoch_Increases.pdf}
+
+    \includegraphics[scale=0.7]{figures/generated/nn_Validation_Accuracy_Change_As_Epoch_Increases.pdf}
 
     \subsection{Implementing $L_2$ Regularization}
     $L_2$ regularization has been implemented in the same code file as the other parts of this question (\verb|part_a/neural_network.py|).
@@ -216,9 +219,18 @@
         import ensemble as ensemble
         ensemble.evaluate_ensemble(verbosity=1, data_path="./data")
     \end{pylabblock}
+
+    \medskip
+
+    Output:
+
     \printpythontex[verb]
 
-    We selected 3 base model: kNN, item response model and autoencoder, the bootstrapping phase is done with \verb|numpy.choice|, which samples n user v from the training sparse matrix uniformly, with replacement. To accomadate at least one entree per user and to maintain user order that is required in current version of evaluation functions, we concatenated all of our samples under the original \verb|train_matrix|. We generate 3 versions of bagged train matrix then train each basemodel respectively. For final prediction, we take the average of the predictions given by the 3 trained models, if the averaged value is greater than 0.5, the prediction will be 1, else it will be 0. Our final result on test data showed the ensemble algorithm performed better than kNN, had very close performance to neural network, and performed a bit less than item response model. We believe this is because of bagging helped to reduce variance, but does not affect the bias. We suspect the averaging strategy made the worst performing model kNN influenced final prediction too much which resulted the accuracy being less than item response model solely.
+    \medskip
+
+    We selected 3 base model: kNN, item response model and autoencoder, the bootstrapping phase is done with \verb|numpy.choice|, which samples n user v from the training sparse matrix uniformly, with replacement. To accomadate at least one entree per user and to maintain user order that is required in current version of evaluation functions, we concatenated all of our samples under the original \verb|train_matrix|. We generate 3 versions of bagged train matrix then train each basemodel respectively. For final prediction, we take the average of the predictions given by the 3 trained models, if the average of the value is greater than (or equal to) $0.5$, the prediction will be $1$, otherwise, it will be $0$. Our final result on test data showed the ensemble algorithm performed better than kNN, had very close performance to neural network, and performed a bit less than item response model. To elaborate, we see that the test accuracy for the ensemble is around $69.4\%$ while the neural network's testing accuracy is around $68.6\%$, $68.4\%$ and IRT is around $70.6\%$. The average (without weighing) of the latter three is around $69.2\%$ which aligns with the first, i.e, the ensemble of the three. We believe this is because bagging may reduce variance, but will not affect the bias. It would seem that the two under-performing models, kNN and NN, dragged the accuracy down, while IRT kept it up.
+
+    
 
     \pagebreak
 
@@ -226,41 +238,29 @@
     \section{Formal Description}
     We are extending the ensemble algorithm (Part A, Question 4). The original ensemble algorithm has 3 phases: bagging (bootstrap aggregating sparse matrix) $\implies$ train (training models using the bagged matrix) $\implies$ prediction, as demonstrated in the figure below:
 
-    \includegraphics[scale=0.5]{figures/pb_f1.png}
+    \includegraphics[scale=0.55]{figures/pb_f1.png}
     
-    For this project, we gathered inspirations from the AdaBoost algorithm. 
-
-    AdaBoost is adaptive in the sense that subsequent ‘weak learners’ are tweaked in favor of those samples misclassified by previous classifiers (in our case, predictors of Item Response Theory and Neural Network algorithms). The individual learners can be weak, but as long as the performance of each one is slightly better than random guessing, the final model can be proven to converge to a strong learner.
+    For this project, we gathered inspiration from the AdaBoost algorithm (Freund \& Schapire, 1999). AdaBoost is a short form of Adaptive Boosting; The algorithm is adaptive in the sense that subsequent "weak learners" are tweaked in favor of those samples misclassified by previous classifiers. The individual learners can be weak, but as long as the performance of each one is slightly better than random guessing, the final model can be proven to converge to a strong learner.
     
-    We are modifying the bootstrapping phase (that generates a bagged matrix from the sparse matrix), and prediction phase (green box):
+    As a departure from the Ensemble algorithm demonstrated in part (A), are removing kNN, modifying the bootstrapping phase (that generates a bagged matrix from the sparse matrix), and prediction phase (within the green box in figure above).
 
-    \textbf{1}. Instead of bootstrapping with a uniform probability distribution as ensemble in Part A does, we are assigning weights to each user; the weight of each user is determined by the number of questions that the previous model got wrong on this user, except the first bagging which is still uniform probability distribution.
+    First, our Adaboost Ensemble model does not include k-nn as a weak base model. We have omitted KNN model from our final adaboost ensemble, and instead replaced it with our previously implemented neural network model, with a differently-bagged matrix from the original neural network model. We chose this implementation because the decision surfaces of k-nn classifiers are typically too stable and any multiples of data points in the bootstrap sample do not shift the 'weight' like in many other models. [insert citation]
 
-    To illustrate an example: if model 1 made 10 wrong predictions on questions done by user A and made 0 wrong prediction on questions done by user B, then in the weighted bootstrapping phase of model 2, the weight that user A will be resampled again will be significantly greater than the the weight of user B:
+    The second change is instead of bootstrapping with a uniform probability distribution, we are assigning weights to each user; the weight of each user is determined by the number of questions that the previous model got wrong on this user. The initial bagging is still performed with uniform probability distribution.
 
     \includegraphics[scale=0.5]{figures/pb_f2.png}
 
     [Insert formula here]
     In the general case, After the training of a model, we obtain the number of total training entries; number of training entries that the model scored correctly {} and wrong {}, per user {}.
-    We determine a training accuracy %TODO
+    We determine a training accuracy % TODO
 
-    \textbf{2}. For the prediction phase, instead of generating 3 predictions and taking the average to be the final prediction, we are assigning specific user weights to each model. This weight is determined by the model’s performance on their bagged training set of a specific user. The model with the highest weighting of that specific user will be used for all predictions regarding that user.
+    By focusing on the training errors the models made, we expect our model to perform better because this will reduce overfit on users that can be easily predicted, and improve underfit on users that the models struggle to predict. 
 
-    To illustrate an example, If a model is good at predicting user A and bad at predicting user B and another model that is good at predicting user B and bad at predicting user A, then both model will be selected to predict on users that they are particularly good at and avoid users they don’t have a good grasp with.
+    The third change is during the prediction phase. The prediction phase, instead of generating $3$ predictions and taking the average to be the final prediction, we are assigning specific user weights to each model. These weights are for the sampled users for a bagged training set and determined by the performance of the model on said bagged training set. The model with the highest weighting of that specific user will be used for all predictions regarding that user.
 
-    By focusing on the training errors the models made, we expect this will reduce overfit on users that can be easily predicted, and improve underfit on users that the models struggle to predict. 
+    By picking a single most-suited model to predict based on which user is doing the question, we expect our model to perform better because this will eliminate the risk of bad performing models having a say on a user that they can’t predict well on.
 
-    By picking a single most suited model to predict based on which user is doing the question, we expect this will eliminate the risk of bad performing models having a say on a user that they can’t predict well on (which both original ensemble’s averaging and AdaBoost’s weighted majority vote cannot avoid).
-
-    Additionally, our Adaboost Ensemble model does not include k-nn as a weak base model. We have omitted KNN model from our final adaboost ensemble, and instead replaced it with our previously implemented neural network model, with a differently-bagged matrix from the original neural network model. We chose this implementation because the decision surfaces of k-nn classifiers are typically too stable and any multiples of data points in the bootstrap sample do not shift the 'weight' like in many other models. [insert citation]
-
-    We believe our modification will perform well in cases such as:
-    \begin{itemize}
-        \item Individual user's performance is easy to predict by some models and hard to predict by some other models.
-        \item There exist significant patterns to be learned on the errors that the previous model got wrong. 
-    \end{itemize}
-
-    Figure or Diagram: that shows the overall model or idea. The idea is to make your report more accessible, especially to readers who are starting by skimming your report.
+    The original adaboost uses a general weight to predict which weight is determined by the accuracy of training data, but we believe predicting weight per specific user can further show us which model is good at predicting which user.
 
     \includegraphics[scale=0.55]{figures/pb_f3.png}
 

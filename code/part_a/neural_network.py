@@ -193,10 +193,12 @@ def accuracy_plot(epochs, accuracy, title):
     plt.xticks(epochs)
     plt.title(title)
     plt.show()
-    plt.savefig("figures/generated/nn_{}.pdf".format(title.replace(" ", "_")))
+    if os.path.exists("figures/generated/"):
+        plt.savefig("figures/generated/nn_{}.pdf".format(title.replace(" ", "_")))
+        plt.close()
 
 
-def main(data_path="../data", verbosity=1):
+def main(data_path="../data", verbosity=3):
     zero_train_matrix, train_matrix, valid_data, test_data = load_data(data_path)
 
     #####################################################################
@@ -205,10 +207,10 @@ def main(data_path="../data", verbosity=1):
     # validation set.                                                   #
     #####################################################################
     # Set model hyperparameters. #TODO Change this
-    ks = [10,]
-    lrs = [ 0.05]
-    num_epochs = [22]
-    lambs = [ 0.00025,0.001]
+    ks = [10, 50, 100, 200, 500]
+    lrs = [0.05]
+    num_epochs = [40]
+    lambs = [0.0, 0.001, 0.1, 1]
     model = None
 
     u, q = train_matrix.shape
@@ -245,6 +247,7 @@ def main(data_path="../data", verbosity=1):
                             print("\tFinal accuracy\t{}".format(acc))
                             print("\tFinal Test Accuracy*\t{}".format(test_acc))
 
+    if verbosity > 0:
         print("Concluding learning rate, number of epoch and lambda optimizations.")
         print("Results:")
         print("\tFinal acc.:\t{}".format(acc_star))
