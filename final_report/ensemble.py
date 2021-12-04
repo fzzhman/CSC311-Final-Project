@@ -108,15 +108,15 @@ def evaluate_ensemble(verbosity = 1, data_path = "../data", n=300):
     num_users, num_questions = np.shape(sparse_matrix)
 
     # Train IRT
-    irt_model = irt.irt(sample_sparse_matrix(n, sparse_matrix), val_data, 0.001, 180)
+    irt_model = irt.irt(sample_sparse_matrix(n, sparse_matrix), val_data, 0.001, 20)
 
     # Train NN
     sub_sparse_matrix = sample_sparse_matrix(n, sparse_matrix, guarantee_users=False)
     sub_zero_matrix = sub_sparse_matrix.toarray().copy()
     sub_zero_matrix[np.isnan(sub_zero_matrix)] = 0
-    nn_model = nn.AutoEncoder(num_questions, 10)
+    nn_model = nn.AutoEncoder(num_questions, 4)
     nn.train(nn_model, 0.05, 0.00025, torch.FloatTensor(sub_sparse_matrix.toarray()),
-             torch.FloatTensor(sub_zero_matrix), 40, val_data, verbosity=1)
+             torch.FloatTensor(sub_zero_matrix), 10, val_data, verbosity=1)
 
     # kNN impute
     knn_sub_sparse_mat = sample_sparse_matrix(n, sparse_matrix)

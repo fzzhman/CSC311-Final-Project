@@ -164,7 +164,6 @@ def main(data_dir = "../data"):
     test_data = load_public_test_csv(data_dir)
 
 
-
     #####################################################################
     # TODO:                                                             #
     # Tune learning rate and number of iterations. With the implemented #

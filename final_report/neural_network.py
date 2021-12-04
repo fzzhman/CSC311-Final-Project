@@ -192,7 +192,6 @@ def accuracy_plot(epochs, accuracy, title):
     plt.ylabel("Accuracy")
     plt.xticks(epochs)
     plt.title(title)
-    plt.show()
     plt.savefig("figures/generated/nn_{}.pdf".format(title.replace(" ", "_")))
 
 
@@ -207,8 +206,8 @@ def main(data_path="../data", verbosity=1):
     # Set model hyperparameters. #TODO Change this
     ks = [10,]
     lrs = [ 0.05]
-    num_epochs = [22]
-    lambs = [ 0.00025,0.001]
+    num_epochs = [10]
+    lambs = [ 0.00025]
     model = None
 
     u, q = train_matrix.shape

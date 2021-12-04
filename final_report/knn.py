@@ -65,8 +65,7 @@ def accuracy_plot(k_vals, accuracy, title):
     plt.xticks(k_vals)
     plt.title(title)
     plt.show()
-    if os.path.exists("figures/generated/"):
-        plt.savefig("figures/generated/knn_{}.pdf".format(title.replace(" ", "_")))
+    plt.savefig("figures/generated/knn_{}.pdf".format(title.replace(" ", "_")))
 
 
 def main(data_path = "../data", verbosity = 1):
@@ -87,7 +86,7 @@ def main(data_path = "../data", verbosity = 1):
     # chosen k*.                                                        #
     #####################################################################
 
-    k_vals = [1, 6, 11, 16, 21, 26]
+    k_vals = [1, 6]
     
     val_user_acc = []
     for k in k_vals:
