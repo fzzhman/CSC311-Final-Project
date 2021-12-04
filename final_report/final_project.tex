@@ -266,4 +266,41 @@
 
     \section{Figure or Diagram}
     \section{Comparison or Demonstration}
+
+    \includegraphics[scale=0.7]{figures/pb_f4.png}
+
+    We expect our model to perform better than the original ensemble no matter what the hyperparameter is, and whether regularization is applied or not. To demonstrate this, we track the accuracy of each model for different hyperparameters, to show that the Adaboost Model outperforms the ensemble, as well as the neural network base models.
+
+    Analysis for $k$ value:
+    \begin{itemize}
+        \item Modified Adaboost outperforms ensemble and neural net on most $k$, except ensembles have higher performance when $k$ is extremely large or small.
+        \item An interesting finding is that the neural network model has low accuracy on $k=500$, but ensemble and modified adaboost appears to have another optimal tuning set around $k=500$. This can be further explored for future work.
+    \end{itemize}
+
+    \includegraphics[scale=0.7]{figures/pb_f5.png}
+
+    Analysis of Neural Network Epoch:
+    \begin{itemize}
+        \item We expected that our most suited model strategy will be resilient to overfit, this is somewhat proven, given that at epoch=100, our model outperformed the base neural model.
+        \item However, the original ensemble demonstrated much more resiliency to overfit, this suggests that our final prediction determining mechanism did not meet our hypothesis, it needed to be modified.
+    \end{itemize}
+
+    \includegraphics[scale=0.6]{figures/pb_f6.png}
+
+    Analysis of regularization:
+    \begin{itemize}
+        \item 
+    \end{itemize}
+
+    \includegraphics[scale=0.7]{figures/pb_f7.png}
+
+    \section{Limitations}
+    We will discuss some settings in which all existing methods may fail, try to guess why said methods may fail, and provide possible extensions of our Adaboost derivative that may allow for overcoming these issues.
+
+    To start, we need to recognize that our implementation is not true adaboosting. Rather, it's a derivative however it may be considered a form of boosting, i.e, relying on weaker learners to come together and create one relatively stronger learner. In recongizing this, we can also recognize that there is an increase in sensitivity towards noise. Intuitively, this can be explained by noting that each proceeding learner in our sequence attempts to account for the errors of the previous learner. This results in magnifying potential false negatives. This may explain our low accuracy as a certain population of users we have in our training set had high prediction error rates for all three of the learning algorithms we implemented. To elaborate, these users may have had some piece of data that we did not consider, and therefore may be considered an outlier to all our algorithms. In such a case, they serve to emphasize something that (again, within the scope of our feature set), did not have a strong corellation resulting in noise, and therefore, reducing accuracy.
+
+    To overcome this issue of having what may be considered potentially pseudo outliers, we may want to introduce more properties or features our algorithms can analyze and potentially build a model around. In other words, under the assumption that these outliers do have some common properties that serve to indicate why they may be an outlier, we can potentially model for this. A more specific solution may be to use a more elaborate neural network that has a node to account for other information on the user, such as age, time spent active (doing work), and time spend inactive, etc. This neural network may then feed into the autoencoder and the two should be optimized as one neural network.
+
+    The previously mentioned extension is, in a sense, expanding our hypothesis space. Another thought is to reduce the hypothesis space that our data actually represents, i.e, remove the outliers that do not have the appropriate data to model them. In such a case, we may look at pre-processing the data before feeding it into our algorithm. If the issue truly was noise induced error, then this should also increase our accuracy.
+
 \end{document}
