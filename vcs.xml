@@ -18,6 +18,10 @@
           <option name="url" value="https://github.com/fzzhman/CSC311-Final-Project" />
           <option name="userName" value="" />
         </UrlAndUserName>
+        <UrlAndUserName>
+          <option name="url" value="https://github.com/unode/firefox_decrypt.git" />
+          <option name="userName" value="" />
+        </UrlAndUserName>
       </list>
     </option>
     <option name="cloneParentDir" value="C:\Users\longl\PycharmProjects" />
